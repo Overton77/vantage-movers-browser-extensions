@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Granot Sync</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: system-ui, -apple-system, sans-serif;
+        min-width: 300px;
+        color: #111;
+      }
+      h1 {
+        font-size: 16px;
+        margin: 0 0 8px;
+      }
+      p {
+        font-size: 13px;
+        color: #555;
+        margin: 0 0 12px;
+        line-height: 1.4;
+      }
+      button {
+        width: 100%;
+        padding: 8px 12px;
+        margin-bottom: 8px;
+        border: none;
+        border-radius: 6px;
+        background: #2563eb;
+        color: #fff;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      #status {
+        font-size: 12px;
+        color: #666;
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Granot Sync</h1>
+    <p>
+      Open DevTools → Console on the Granot tab and filter for
+      <code>[Granot Sync]</code>.
+    </p>
+    <button id="dump-tables" type="button">Log tables on this tab</button>
+    <button id="sync-follow-up" type="button">Sync follow-up quoted flags</button>
+    <div id="status"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
