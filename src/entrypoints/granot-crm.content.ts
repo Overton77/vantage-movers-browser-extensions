@@ -1,6 +1,6 @@
 import { GRANOT_URL_PATTERNS } from "../config";
-import { logPageAndTables } from "../utils/page-scraper";
-import { log } from "../utils/logger";
+import { getSearchDocuments, logPageAndTables } from "../utils/page-scraper";
+import { error as logError, log } from "../utils/logger";
 
 type FollowUpRow = {
   id: string;
@@ -61,38 +61,119 @@ const FIELD_ALIASES = {
 
 export default defineContentScript({
   matches: [...GRANOT_URL_PATTERNS],
+  allFrames: true,
   runAt: "document_idle",
 
   main() {
-    log("Content script active on", window.location.href);
+    const startedAt = new Date().toISOString();
+    const manifest = browser.runtime.getManifest();
 
-    // Log once on load, then again after 2s (Granot may render tables late)
-    logPageAndTables();
-    setTimeout(() => {
-      log("Re-scanning page after delay…");
-      logPageAndTables();
-    }, 2000);
+    log(
+      `Content script v${manifest.version} active on`,
+      window.location.href,
+      "frame is top?",
+      window.top === window,
+    );
 
-    browser.runtime.onMessage.addListener((message) => {
-      if (message?.type === "DUMP_TABLES") {
-        const tables = logPageAndTables();
-        return Promise.resolve({ ok: true, tables });
-      }
+    // Always-on PING handler. Registered FIRST so even if the rest of main()
+    // throws, the popup's Diagnose Page can still see this frame answered.
+    browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      try {
+        if (message?.type === "PING") {
+          sendResponse(buildPingResponse(manifest, startedAt));
+          return true;
+        }
 
-      if (message?.type === "PARSE_FOLLOW_UP_ROWS") {
-        return Promise.resolve(parseFollowUpRows(document));
-      }
+        if (message?.type === "DUMP_TABLES") {
+          const tables = logPageAndTables();
+          sendResponse({ ok: true, tables });
+          return true;
+        }
 
-      if (message?.type === "PARSE_CURRENT_FORM_LEAD") {
-        return Promise.resolve(parseCurrentFormLead(document, window.location.href));
+        if (message?.type === "PARSE_FOLLOW_UP_ROWS") {
+          sendResponse(parseFollowUpRowsFromSearchDocuments());
+          return true;
+        }
+
+        if (message?.type === "PARSE_CURRENT_FORM_LEAD") {
+          sendResponse(parseCurrentFormLeadFromSearchDocuments());
+          return true;
+        }
+      } catch (err) {
+        logError("Content script handler crashed for", message, err);
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return true;
       }
 
       return undefined;
     });
+
+    try {
+      // Log once on load, then again after 2s (Granot may render tables late)
+      logPageAndTables();
+      setTimeout(() => {
+        log("Re-scanning page after delay…");
+        try {
+          logPageAndTables();
+        } catch (err) {
+          logError("Delayed re-scan failed:", err);
+        }
+      }, 2000);
+    } catch (err) {
+      logError("Initial page scan failed:", err);
+    }
   },
 });
 
-function parseCurrentFormLead(root: ParentNode, pageUrl: string): CurrentFormLeadParseResult {
+function buildPingResponse(
+  manifest: { name: string; version: string; manifest_version?: number },
+  startedAt: string,
+) {
+  const tableCount = document.querySelectorAll("table").length;
+  const headings = [...document.querySelectorAll("h1,h2,h3,h4")];
+  const hasFollowUpHeading = headings.some((heading) =>
+    (heading.textContent ?? "").toLowerCase().includes("follow up estimates"),
+  );
+  const hasBookedJobsHeading = headings.some((heading) =>
+    (heading.textContent ?? "").toLowerCase().includes("booked jobs"),
+  );
+
+  return {
+    ok: true,
+    type: "PING_RESPONSE",
+    extensionVersion: manifest.version,
+    extensionName: manifest.name,
+    runtimeId: browser.runtime.id,
+    frameUrl: window.location.href,
+    isTopFrame: window.top === window,
+    documentReadyState: document.readyState,
+    documentTitle: document.title,
+    htmlLength: document.documentElement.outerHTML.length,
+    tableCount,
+    hasFollowUpHeading,
+    hasBookedJobsHeading,
+    startedAt,
+    respondedAt: new Date().toISOString(),
+  };
+}
+
+function parseCurrentFormLeadFromSearchDocuments(): CurrentFormLeadParseResult {
+  for (const searchDocument of getSearchDocuments()) {
+    const result = parseCurrentFormLead(searchDocument.document, searchDocument.frameUrl);
+    if (result.pageFound) {
+      return result;
+    }
+  }
+
+  const result = { ok: true, pageFound: false } satisfies CurrentFormLeadParseResult;
+  log("No current form lead edit page found in page or accessible frames:", result);
+  return result;
+}
+
+function parseCurrentFormLead(root: Document, pageUrl: string): CurrentFormLeadParseResult {
   const refInput = root.querySelector<HTMLInputElement>('form[name="theForm"] input[name="ORDREF"], input[name="ORDREF"]');
   const looksLikeEditPage = pageUrl.includes("mpcharge~chargeswc") || Boolean(refInput);
 
@@ -168,6 +249,24 @@ function parseCurrentFormLead(root: ParentNode, pageUrl: string): CurrentFormLea
   return result;
 }
 
+function parseFollowUpRowsFromSearchDocuments(): ParseResult {
+  for (const searchDocument of getSearchDocuments()) {
+    const result = parseFollowUpRows(searchDocument.document);
+    if (result.tableFound) {
+      return result;
+    }
+  }
+
+  const result = {
+    ok: true,
+    tableFound: false,
+    rows: [],
+    counts: { total: 0, syncable: 0, invalid: 0, unsupported: 0 },
+  } satisfies ParseResult;
+  log("No Follow Up Estimates table found in page or accessible frames:", result);
+  return result;
+}
+
 function readPriorityLevel(root: ParentNode): number | undefined {
   const priorityLink = root.querySelector<HTMLAnchorElement>('a[href*="fustatuswc"]');
   const priorityContainerText = normalizeCellText(
@@ -181,7 +280,7 @@ function readPriorityLevel(root: ParentNode): number | undefined {
   return Number(priorityMatch[1]);
 }
 
-function parseFollowUpRows(root: ParentNode): ParseResult {
+function parseFollowUpRows(root: Document): ParseResult {
   const table = findFollowUpTable(root);
   if (!table) {
     const result = {

@@ -6,7 +6,7 @@ export default defineConfig({
   manifest: {
     name: 'Granot Sync',
     description: 'Sync data from Granot CRM to the Vantage server',
-    permissions: ['storage', 'activeTab', 'tabs'],
+    permissions: ['storage', 'activeTab', 'tabs', 'webNavigation'],
     host_permissions: [
       // Granot CRM (HelloMoving / Eagle)
       'https://eagle.hellomoving.com/*',

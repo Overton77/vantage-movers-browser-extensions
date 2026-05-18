@@ -14,9 +14,17 @@ export type TableRow = {
 
 export type TableData = {
   tableIndex: number;
+  framePath: string;
+  frameUrl: string;
   id?: string;
   className?: string;
   rows: TableRow[];
+};
+
+type SearchDocument = {
+  document: Document;
+  framePath: string;
+  frameUrl: string;
 };
 
 export function getPageContext(): PageContext {
@@ -33,18 +41,54 @@ export function getPageHtml(): string {
   return document.documentElement.outerHTML;
 }
 
-export function scrapeTables(): TableData[] {
-  return [...document.querySelectorAll('table')].map((table, tableIndex) => ({
-    tableIndex,
-    id: table.id || undefined,
-    className: table.className || undefined,
-    rows: [...table.querySelectorAll('tr')].map((tr, rowIndex) => ({
-      rowIndex,
-      cells: [...tr.querySelectorAll('td, th')].map(
-        (cell) => cell.textContent?.trim() ?? '',
-      ),
+export function getSearchDocuments(rootDocument: Document = document): SearchDocument[] {
+  const seen = new Set<Document>();
+  const collect = (currentDocument: Document, framePath: string): SearchDocument[] => {
+    if (seen.has(currentDocument)) {
+      return [];
+    }
+
+    seen.add(currentDocument);
+
+    const current: SearchDocument = {
+      document: currentDocument,
+      framePath,
+      frameUrl: currentDocument.location?.href ?? '',
+    };
+
+    const childDocuments = [...currentDocument.querySelectorAll('iframe, frame')].flatMap(
+      (frame, index) => {
+        try {
+          const childDocument = (frame as HTMLIFrameElement | HTMLFrameElement).contentDocument;
+          return childDocument ? collect(childDocument, `${framePath}.${index}`) : [];
+        } catch {
+          return [];
+        }
+      },
+    );
+
+    return [current, ...childDocuments];
+  };
+
+  return collect(rootDocument, 'top');
+}
+
+export function scrapeTables(rootDocument: Document = document): TableData[] {
+  return getSearchDocuments(rootDocument).flatMap((searchDocument) =>
+    [...searchDocument.document.querySelectorAll('table')].map((table, tableIndex) => ({
+      tableIndex,
+      framePath: searchDocument.framePath,
+      frameUrl: searchDocument.frameUrl,
+      id: table.id || undefined,
+      className: table.className || undefined,
+      rows: [...table.querySelectorAll('tr')].map((tr, rowIndex) => ({
+        rowIndex,
+        cells: [...tr.querySelectorAll('td, th')].map(
+          (cell) => cell.textContent?.trim() ?? '',
+        ),
+      })),
     })),
-  }));
+  );
 }
 
 export function logPageAndTables(): TableData[] {
@@ -58,6 +102,8 @@ export function logPageAndTables(): TableData[] {
 
   for (const table of tables) {
     log(`Table #${table.tableIndex}`, {
+      framePath: table.framePath,
+      frameUrl: table.frameUrl,
       id: table.id,
       className: table.className,
       rowCount: table.rows.length,

@@ -10,20 +10,34 @@
       }
       body {
         margin: 0;
-        padding: 16px;
+        padding: 14px;
         font-family: system-ui, -apple-system, sans-serif;
-        min-width: 680px;
-        max-width: 760px;
+        min-width: 720px;
+        max-width: 820px;
         color: #111;
+        background: #f8fafc;
+      }
+      @media (max-width: 760px) {
+        body {
+          min-width: 620px;
+        }
+        .workflows {
+          grid-template-columns: 1fr;
+        }
       }
       h1 {
-        font-size: 16px;
-        margin: 0 0 8px;
+        font-size: 18px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 14px;
+        margin: 0 0 4px;
+        color: #0f172a;
       }
       p {
         font-size: 13px;
         color: #555;
-        margin: 0 0 12px;
+        margin: 0;
         line-height: 1.4;
       }
       button {
@@ -50,17 +64,51 @@
         background: #94a3b8;
         cursor: not-allowed;
       }
+      .app-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 12px;
+      }
+      .app-header p {
+        margin-top: 4px;
+      }
+      .header-actions {
+        white-space: nowrap;
+      }
+      .workflows {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .workflow-card {
+        border: 1px solid #dbe3ef;
+        border-radius: 12px;
+        padding: 12px;
+        background: #fff;
+        box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+      }
+      .workflow-card.active {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px rgb(37 99 235 / 0.12);
+      }
+      .workflow-card p {
+        min-height: 54px;
+        margin-bottom: 10px;
+      }
       #status {
         font-size: 12px;
-        color: #666;
+        color: #334155;
         line-height: 1.4;
-        margin: 4px 0 12px;
+        margin: 0 0 10px;
       }
       .controls {
-        margin-bottom: 8px;
+        margin-bottom: 0;
       }
       .summary {
-        background: #f8fafc;
+        background: #fff;
         border: 1px solid #e2e8f0;
         border-radius: 8px;
         padding: 8px 10px;
@@ -70,13 +118,13 @@
       .rows {
         display: grid;
         gap: 8px;
-        max-height: 480px;
+        max-height: 430px;
         overflow: auto;
       }
       .row {
         border: 1px solid #e2e8f0;
         border-radius: 8px;
-        padding: 8px;
+        padding: 10px;
         font-size: 12px;
         background: #fff;
       }
@@ -97,6 +145,29 @@
       .row-meta {
         color: #475569;
         line-height: 1.45;
+      }
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .field {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 8px;
+        background: #f8fafc;
+      }
+      .field-label {
+        display: block;
+        color: #64748b;
+        font-size: 11px;
+        margin-bottom: 2px;
+      }
+      .field-value {
+        color: #0f172a;
+        font-weight: 600;
+        word-break: break-word;
       }
       .override-control {
         display: block;
@@ -131,23 +202,69 @@
         background: #dcfce7;
         color: #166534;
       }
+      .diag {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        line-height: 1.5;
+        background: #0f172a;
+        color: #f1f5f9;
+        padding: 10px 12px;
+        border-radius: 8px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .diag .diag-row {
+        padding: 4px 0;
+        border-bottom: 1px solid #1e293b;
+      }
+      .diag .diag-row:last-child {
+        border-bottom: none;
+      }
+      .diag .diag-key {
+        color: #94a3b8;
+      }
+      .diag .diag-bad {
+        color: #fca5a5;
+      }
+      .diag .diag-good {
+        color: #86efac;
+      }
     </style>
   </head>
   <body>
-    <h1>Granot Sync</h1>
-    <p>
-      Sync quoted status from the visible Follow Up Estimates table or from the current
-      Granot lead edit page.
-    </p>
+    <header class="app-header">
+      <div>
+        <h1>Granot Sync</h1>
+        <p>Choose the workflow that matches the current Granot page, preview the result, then sync to Vantage.</p>
+      </div>
+      <div class="header-actions">
+        <button id="open-detached" class="secondary" type="button">Open Movable Window</button>
+      </div>
+    </header>
+    <div class="workflows">
+      <section id="follow-up-panel" class="workflow-card">
+        <h2>Follow Up Estimates Table</h2>
+        <p>Use this on the total rows view. Scan visible rows, select supported Level-0/Level-1 rows, then sync selected leads.</p>
+        <div class="controls">
+          <button id="scan-follow-up" type="button">Scan Table</button>
+          <button id="sync-selected" type="button" disabled>Sync Selected</button>
+          <button id="sync-all" type="button" disabled>Sync All Supported</button>
+          <button id="select-all" class="secondary" type="button" disabled>Select All</button>
+          <button id="deselect-all" class="secondary" type="button" disabled>Deselect All</button>
+        </div>
+      </section>
+      <section id="current-lead-panel" class="workflow-card">
+        <h2>Lead Form Edit View</h2>
+        <p>Use this after the owner changes Priority on the edit form and Granot finishes saving or reloading.</p>
+        <div class="controls">
+          <button id="scan-current-page" type="button">Preview Current Lead</button>
+          <button id="sync-current-lead" type="button" disabled>Sync Current Lead</button>
+        </div>
+      </section>
+    </div>
     <div class="controls">
-      <button id="scan-current-page" type="button">Scan Current Page</button>
-      <button id="sync-current-lead" type="button" disabled>Sync Current Lead</button>
-      <button id="scan-follow-up" type="button">Scan Follow Up Estimates</button>
-      <button id="sync-selected" type="button" disabled>Sync Selected</button>
-      <button id="sync-all" type="button" disabled>Sync All Supported</button>
-      <button id="select-all" class="secondary" type="button" disabled>Select All</button>
-      <button id="deselect-all" class="secondary" type="button" disabled>Deselect All</button>
       <button id="dump-tables" class="secondary" type="button">Debug: Log Tables</button>
+      <button id="diagnose-page" class="secondary" type="button">Diagnose Page</button>
     </div>
     <div id="status"></div>
     <div id="summary" class="summary" hidden></div>
