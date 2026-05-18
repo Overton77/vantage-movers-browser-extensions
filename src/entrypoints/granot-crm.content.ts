@@ -18,6 +18,17 @@ type FollowUpRow = {
   reason?: string;
 };
 
+type CurrentFormLead = {
+  id: string;
+  refNo: string;
+  prior: string;
+  priorityLevel: number | undefined;
+  quoted?: boolean;
+  status: "syncable" | "invalid_ref_no" | "unsupported_prior" | "missing_prior";
+  reason?: string;
+  pageUrl: string;
+};
+
 type ParseResult = {
   ok: true;
   tableFound: boolean;
@@ -28,6 +39,12 @@ type ParseResult = {
     invalid: number;
     unsupported: number;
   };
+};
+
+type CurrentFormLeadParseResult = {
+  ok: true;
+  pageFound: boolean;
+  lead?: CurrentFormLead;
 };
 
 const MONGO_OBJECT_ID_RE = /^[a-f\d]{24}$/i;
@@ -66,10 +83,103 @@ export default defineContentScript({
         return Promise.resolve(parseFollowUpRows(document));
       }
 
+      if (message?.type === "PARSE_CURRENT_FORM_LEAD") {
+        return Promise.resolve(parseCurrentFormLead(document, window.location.href));
+      }
+
       return undefined;
     });
   },
 });
+
+function parseCurrentFormLead(root: ParentNode, pageUrl: string): CurrentFormLeadParseResult {
+  const refInput = root.querySelector<HTMLInputElement>('form[name="theForm"] input[name="ORDREF"], input[name="ORDREF"]');
+  const looksLikeEditPage = pageUrl.includes("mpcharge~chargeswc") || Boolean(refInput);
+
+  if (!looksLikeEditPage) {
+    const result = { ok: true, pageFound: false } satisfies CurrentFormLeadParseResult;
+    log("No current form lead edit page found:", result);
+    return result;
+  }
+
+  const refNo = normalizeCellText(refInput?.value ?? "");
+  const priorityLevel = readPriorityLevel(root);
+  const prior = typeof priorityLevel === "number" ? String(priorityLevel) : "";
+  const baseLead = {
+    id: `current:${refNo || "missing-ref"}`,
+    refNo,
+    prior,
+    priorityLevel,
+    pageUrl,
+  };
+
+  if (!MONGO_OBJECT_ID_RE.test(refNo)) {
+    const result = {
+      ok: true,
+      pageFound: true,
+      lead: {
+        ...baseLead,
+        status: "invalid_ref_no",
+        reason: "Missing or invalid Mongo ObjectId in ORDREF field",
+      },
+    } satisfies CurrentFormLeadParseResult;
+    log("Parsed current form lead:", result);
+    return result;
+  }
+
+  if (typeof priorityLevel !== "number") {
+    const result = {
+      ok: true,
+      pageFound: true,
+      lead: {
+        ...baseLead,
+        status: "missing_prior",
+        reason: "Missing Priority Level on form edit page",
+      },
+    } satisfies CurrentFormLeadParseResult;
+    log("Parsed current form lead:", result);
+    return result;
+  }
+
+  if (priorityLevel !== 0 && priorityLevel !== 1) {
+    const result = {
+      ok: true,
+      pageFound: true,
+      lead: {
+        ...baseLead,
+        status: "unsupported_prior",
+        reason: "Only Priority Level 0 and 1 are syncable without override",
+      },
+    } satisfies CurrentFormLeadParseResult;
+    log("Parsed current form lead:", result);
+    return result;
+  }
+
+  const result = {
+    ok: true,
+    pageFound: true,
+    lead: {
+      ...baseLead,
+      status: "syncable",
+      quoted: priorityLevel === 1,
+    },
+  } satisfies CurrentFormLeadParseResult;
+  log("Parsed current form lead:", result);
+  return result;
+}
+
+function readPriorityLevel(root: ParentNode): number | undefined {
+  const priorityLink = root.querySelector<HTMLAnchorElement>('a[href*="fustatuswc"]');
+  const priorityContainerText = normalizeCellText(
+    priorityLink?.closest("td")?.textContent ?? priorityLink?.parentElement?.textContent ?? "",
+  );
+  const priorityMatch = priorityContainerText.match(/Level\s*-\s*(\d+)/i);
+  if (!priorityMatch) {
+    return undefined;
+  }
+
+  return Number(priorityMatch[1]);
+}
 
 function parseFollowUpRows(root: ParentNode): ParseResult {
   const table = findFollowUpTable(root);

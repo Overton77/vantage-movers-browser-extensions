@@ -98,6 +98,19 @@
         color: #475569;
         line-height: 1.45;
       }
+      .override-control {
+        display: block;
+        margin-top: 8px;
+        color: #334155;
+        font-size: 12px;
+      }
+      select {
+        margin-left: 4px;
+        padding: 5px 8px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 12px;
+      }
       .badge {
         display: inline-block;
         border-radius: 999px;
@@ -123,10 +136,12 @@
   <body>
     <h1>Granot Sync</h1>
     <p>
-      Scan the visible Follow Up Estimates table, review parsed rows, then sync selected
-      supported rows to Vantage.
+      Sync quoted status from the visible Follow Up Estimates table or from the current
+      Granot lead edit page.
     </p>
     <div class="controls">
+      <button id="scan-current-page" type="button">Scan Current Page</button>
+      <button id="sync-current-lead" type="button" disabled>Sync Current Lead</button>
       <button id="scan-follow-up" type="button">Scan Follow Up Estimates</button>
       <button id="sync-selected" type="button" disabled>Sync Selected</button>
       <button id="sync-all" type="button" disabled>Sync All Supported</button>
