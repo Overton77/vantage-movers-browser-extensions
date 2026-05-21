@@ -39,6 +39,7 @@ export type FormLeadLookup = {
   _id: string;
   ref_no?: string;
   quoted?: boolean;
+  cubic_feet?: number;
 };
 
 export type CallLeadEnrichmentRowPayload = {
@@ -91,10 +92,18 @@ export async function getFormLeadById(id: string): Promise<FormLeadLookup> {
   return envelope.data;
 }
 
-export async function updateFormLeadQuoted(id: string, quoted: boolean): Promise<FormLeadLookup> {
+export type FormLeadUpdatePayload = {
+  quoted?: boolean;
+  cubic_feet?: number;
+};
+
+export async function updateFormLead(
+  id: string,
+  payload: FormLeadUpdatePayload,
+): Promise<FormLeadLookup> {
   const envelope = await vantageFetch<FormLeadLookup>(`/api/v1/form-leads/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ quoted }),
+    body: JSON.stringify(payload),
   });
 
   return envelope.data;

@@ -10,6 +10,8 @@ type FollowUpRow = {
   source?: string;
   refNo: string;
   prior: string;
+  estCf?: string;
+  cubicFeet?: number;
   quoted?: boolean;
   customer?: string;
   phone?: string;
@@ -76,6 +78,7 @@ const FIELD_ALIASES = {
   source: ["source"],
   refNo: ["ref_no"],
   prior: ["prior"],
+  estCf: ["est_cf"],
   customer: ["customer"],
   phone: ["phone"],
   email: ["email"],
@@ -650,6 +653,7 @@ function readRowsFromTable(
     const source = getColumnValue(cells, header.columns.source);
     const refNo = getColumnValue(cells, header.columns.refNo);
     const prior = getColumnValue(cells, header.columns.prior);
+    const estCf = getColumnValue(cells, header.columns.estCf);
     const baseRow = {
       id: `${rowIndex}:${refNo || jobNo || displayNumber || "row"}`,
       rowIndex,
@@ -658,6 +662,8 @@ function readRowsFromTable(
       source,
       refNo,
       prior,
+      estCf,
+      cubicFeet: parseCubicFeet(estCf),
       customer: getColumnValue(cells, header.columns.customer),
       phone: getColumnValue(cells, header.columns.phone),
       email: getColumnValue(cells, header.columns.email),
@@ -728,6 +734,16 @@ function getHeaderColumns(headers: string[]): Record<keyof typeof FIELD_ALIASES,
 
 function getColumnValue(cells: string[], column: number): string {
   return column >= 0 ? (cells[column] ?? "") : "";
+}
+
+function parseCubicFeet(value: string): number | undefined {
+  const normalized = value.replace(/,/g, "").trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  const cubicFeet = Number(normalized);
+  return Number.isFinite(cubicFeet) ? cubicFeet : undefined;
 }
 
 function isLeadLikeRow(
