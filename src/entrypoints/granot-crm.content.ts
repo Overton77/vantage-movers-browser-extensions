@@ -47,6 +47,28 @@ type CurrentFormLeadParseResult = {
   lead?: CurrentFormLead;
 };
 
+type CallLeadSectionKey = "bookedJobs" | "followUpEstimates";
+
+type CallLeadPreviewRow = {
+  id: string;
+  rowIndex: number;
+  values: Record<string, string>;
+};
+
+type CallLeadPreviewSection = {
+  key: CallLeadSectionKey;
+  title: string;
+  tableFound: boolean;
+  headers: string[];
+  rows: CallLeadPreviewRow[];
+};
+
+type CallLeadPreviewResult = {
+  ok: true;
+  pageFound: boolean;
+  sections: CallLeadPreviewSection[];
+};
+
 const MONGO_OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 const FIELD_ALIASES = {
   no: ["no"],
@@ -58,6 +80,14 @@ const FIELD_ALIASES = {
   phone: ["phone"],
   email: ["email"],
 } as const;
+const CALL_LEAD_SECTIONS = [
+  { key: "bookedJobs", title: "Booked Jobs", heading: "booked jobs" },
+  {
+    key: "followUpEstimates",
+    title: "Follow Up Estimates",
+    heading: "follow up estimates",
+  },
+] as const;
 
 export default defineContentScript({
   matches: [...GRANOT_URL_PATTERNS],
@@ -97,6 +127,11 @@ export default defineContentScript({
 
         if (message?.type === "PARSE_CURRENT_FORM_LEAD") {
           sendResponse(parseCurrentFormLeadFromSearchDocuments());
+          return true;
+        }
+
+        if (message?.type === "PARSE_CALL_LEAD_TABLES") {
+          sendResponse(parseCallLeadTablesFromSearchDocuments());
           return true;
         }
       } catch (err) {
@@ -158,6 +193,58 @@ function buildPingResponse(
     startedAt,
     respondedAt: new Date().toISOString(),
   };
+}
+
+function parseCallLeadTablesFromSearchDocuments(): CallLeadPreviewResult {
+  for (const searchDocument of getSearchDocuments()) {
+    const result = parseCallLeadTables(searchDocument.document);
+    if (result.pageFound) {
+      return result;
+    }
+  }
+
+  const result = {
+    ok: true,
+    pageFound: false,
+    sections: CALL_LEAD_SECTIONS.map((section) => ({
+      key: section.key,
+      title: section.title,
+      tableFound: false,
+      headers: [],
+      rows: [],
+    })),
+  } satisfies CallLeadPreviewResult;
+  log("No Call Leads / Booked Call Leads tables found in page or accessible frames:", result);
+  return result;
+}
+
+function parseCallLeadTables(root: Document): CallLeadPreviewResult {
+  const sections = CALL_LEAD_SECTIONS.map((section) => {
+    const table = findTableInSection(root, section.heading);
+    if (!table) {
+      return {
+        key: section.key,
+        title: section.title,
+        tableFound: false,
+        headers: [],
+        rows: [],
+      };
+    }
+
+    return {
+      key: section.key,
+      title: section.title,
+      tableFound: true,
+      ...readPreviewTable(table),
+    };
+  });
+  const result = {
+    ok: true,
+    pageFound: sections.some((section) => section.tableFound),
+    sections,
+  } satisfies CallLeadPreviewResult;
+  log("Parsed Call Leads / Booked Call Leads tables:", result);
+  return result;
 }
 
 function parseCurrentFormLeadFromSearchDocuments(): CurrentFormLeadParseResult {
@@ -317,21 +404,97 @@ function parseFollowUpRows(root: Document): ParseResult {
 }
 
 function findFollowUpTable(root: ParentNode): HTMLTableElement | undefined {
-  for (const table of [...root.querySelectorAll("table")]) {
-    const header = findHeaderRow(table);
-    if (!header) {
+  return findTableInSection(root, "follow up estimates", findHeaderRow);
+}
+
+function findTableInSection(
+  root: ParentNode,
+  headingText: string,
+  isUsableTable: (table: HTMLTableElement) => unknown = findPreviewHeaderRow,
+): HTMLTableElement | undefined {
+  const candidates: Array<{
+    tableIndex: number;
+    sectionName?: string;
+    headerRowIndex?: number;
+    firstHeaders: string[];
+    rowCount: number;
+  }> = [];
+  const tables = [...root.querySelectorAll("table")];
+
+  for (let tableIndex = 0; tableIndex < tables.length; tableIndex += 1) {
+    const table = tables[tableIndex];
+    const usableTable = isUsableTable(table);
+    if (usableTable === undefined || usableTable === false) {
       continue;
     }
 
-    if (isInFollowUpSection(root, table)) {
+    const headerRowIndex =
+      typeof usableTable === "number"
+        ? usableTable
+        : typeof findPreviewHeaderRow(table) === "number"
+          ? findPreviewHeaderRow(table)
+          : findHeaderRow(table)?.rowIndex;
+    const sectionName = getTableSectionName(root, table);
+    candidates.push({
+      tableIndex,
+      sectionName,
+      headerRowIndex,
+      firstHeaders:
+        typeof headerRowIndex === "number"
+          ? getCellTexts(getOwnTableRows(table)[headerRowIndex]).slice(0, 8)
+          : [],
+      rowCount: getOwnTableRows(table).length,
+    });
+
+    if (sectionName === headingText) {
+      log(`Matched table for section "${headingText}"`, candidates.at(-1));
       return table;
     }
   }
 
+  log(`No table matched section "${headingText}"`, {
+    tableCount: tables.length,
+    candidates,
+    tableSummaries: tables.map((table, tableIndex) =>
+      buildDebugTableSummary(table, tableIndex),
+    ),
+    bodyTextPreview: normalizeCellText(
+      (root instanceof Document ? root.body : document.body)?.textContent ?? "",
+    ).slice(0, 500),
+  });
   return undefined;
 }
 
-function isInFollowUpSection(root: ParentNode, table: HTMLTableElement): boolean {
+function buildDebugTableSummary(table: HTMLTableElement, tableIndex: number) {
+  const ownRows = getOwnTableRows(table);
+  const previewHeaderRow = findPreviewHeaderRow(table);
+  const formLeadHeaderRow = findHeaderRow(table)?.rowIndex;
+
+  return {
+    tableIndex,
+    ownRowCount: ownRows.length,
+    allRowCount: table.querySelectorAll("tr").length,
+    previewHeaderRow,
+    formLeadHeaderRow,
+    attributes: {
+      id: table.id || undefined,
+      className: table.className || undefined,
+      width: table.getAttribute("width") || undefined,
+      bgcolor: table.getAttribute("bgcolor") || undefined,
+      border: table.getAttribute("border") || undefined,
+    },
+    firstRows: ownRows.slice(0, 4).map((row, rowIndex) => ({
+      rowIndex,
+      cellCount: row.cells.length,
+      cells: getCellTexts(row).slice(0, 12),
+    })),
+  };
+}
+
+function getTableSectionName(
+  root: ParentNode,
+  table: HTMLTableElement,
+): "booked jobs" | "follow up estimates" | undefined {
   const headings = [...root.querySelectorAll("h1,h2,h3,h4")].filter((heading) => {
     const text = normalizeCellText(heading.textContent).toLowerCase();
     return text.includes("follow up estimates") || text.includes("booked jobs");
@@ -341,9 +504,103 @@ function isInFollowUpSection(root: ParentNode, table: HTMLTableElement): boolean
     .filter((heading) => heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING)
     .at(-1);
 
-  return normalizeCellText(precedingHeading?.textContent ?? "")
-    .toLowerCase()
-    .includes("follow up estimates");
+  const headingText = normalizeCellText(precedingHeading?.textContent ?? "").toLowerCase();
+  if (headingText.includes("follow up estimates")) {
+    return "follow up estimates";
+  }
+  if (headingText.includes("booked jobs")) {
+    return "booked jobs";
+  }
+
+  return getSectionNameFromPrecedingText(root, table);
+}
+
+function getSectionNameFromPrecedingText(
+  root: ParentNode,
+  table: HTMLTableElement,
+): "booked jobs" | "follow up estimates" | undefined {
+  const rootElement =
+    root instanceof Document
+      ? root.body
+      : root instanceof Element
+        ? root
+        : table.ownerDocument.body;
+  if (!rootElement) {
+    return undefined;
+  }
+
+  try {
+    const range = table.ownerDocument.createRange();
+    range.selectNodeContents(rootElement);
+    range.setEndBefore(table);
+    const precedingText = normalizeCellText(range.toString()).toLowerCase();
+    range.detach();
+
+    const lastBookedJobs = precedingText.lastIndexOf("booked jobs");
+    const lastFollowUpEstimates = precedingText.lastIndexOf("follow up estimates");
+    if (lastBookedJobs < 0 && lastFollowUpEstimates < 0) {
+      return undefined;
+    }
+
+    return lastFollowUpEstimates > lastBookedJobs
+      ? "follow up estimates"
+      : "booked jobs";
+  } catch (err) {
+    logError("Could not read preceding text for table section detection:", err);
+    return undefined;
+  }
+}
+
+function readPreviewTable(table: HTMLTableElement): {
+  headers: string[];
+  rows: CallLeadPreviewRow[];
+} {
+  const tableRows = getOwnTableRows(table);
+  const headerRowIndex = findPreviewHeaderRow(table);
+  if (typeof headerRowIndex !== "number") {
+    return { headers: [], rows: [] };
+  }
+
+  const headers = getCellTexts(tableRows[headerRowIndex]);
+  const rows = tableRows
+    .slice(headerRowIndex + 1)
+    .map((row, offset) => {
+      const rowIndex = headerRowIndex + 1 + offset;
+      const cells = getCellTexts(row);
+      return {
+        id: `${rowIndex}:${cells[0] || cells[1] || "row"}`,
+        rowIndex,
+        values: Object.fromEntries(
+          headers.map((header, index) => [
+            header || `Column ${index + 1}`,
+            cells[index] ?? "",
+          ]),
+        ),
+      };
+    })
+    .filter((row) => {
+      const rowNumber = row.values.no ?? "";
+      return /^\d+$/.test(rowNumber) && Boolean(row.values.job_no || row.values.customer);
+    });
+
+  return { headers, rows };
+}
+
+function findPreviewHeaderRow(table: HTMLTableElement): number | undefined {
+  const rows = getOwnTableRows(table);
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const cells = [...rows[rowIndex].cells];
+    const headers = cells.map((cell) => normalizeHeaderText(cell.textContent ?? ""));
+    if (
+      cells.some((cell) => cell.tagName.toLowerCase() === "th") &&
+      headers.includes("job_no") &&
+      headers.includes("customer")
+    ) {
+      return rowIndex;
+    }
+  }
+
+  return undefined;
 }
 
 function findHeaderRow(table: HTMLTableElement):

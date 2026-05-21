@@ -13,7 +13,7 @@ export default defineConfig({
       'https://*.granot.com/*',
       'https://*.granot.co.il/*',
       'http://localhost/*',
-      'https://vantage-movers-servers.vercel.app/*',
+      'https://vantage-movers-main-server.vercel.app/*',
     ],
     browser_specific_settings: {
       gecko: {

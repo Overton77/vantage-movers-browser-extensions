@@ -1,5 +1,12 @@
 import { GRANOT_URL_PATTERNS } from "../../config";
-import { getFormLeadById, updateFormLeadQuoted } from "../../utils/api";
+import {
+  getFormLeadById,
+  previewCallLeadEnrichment,
+  syncCallLeadEnrichment,
+  updateFormLeadQuoted,
+  type CallLeadEnrichmentResult,
+  type CallLeadEnrichmentRowPayload,
+} from "../../utils/api";
 
 type FollowUpRow = {
   id: string;
@@ -52,6 +59,33 @@ type CurrentFormLeadParseResponse = {
   frameCount?: number;
 };
 
+type CallLeadPreviewRow = {
+  id: string;
+  rowIndex: number;
+  values: Record<string, string>;
+};
+
+type CallLeadPreviewSection = {
+  key: "bookedJobs" | "followUpEstimates";
+  title: string;
+  tableFound: boolean;
+  headers: string[];
+  rows: CallLeadPreviewRow[];
+};
+
+type CallLeadPreviewResponse = {
+  ok: true;
+  pageFound: boolean;
+  sections: CallLeadPreviewSection[];
+  frameResponses?: number;
+  frameCount?: number;
+};
+
+type CallLeadEnrichmentPreview = {
+  payload: CallLeadEnrichmentRowPayload;
+  result?: CallLeadEnrichmentResult;
+};
+
 type LeadSyncCandidate = {
   id: string;
   refNo: string;
@@ -70,7 +104,7 @@ type RowSyncResult = {
   message: string;
 };
 
-type ActiveMode = "empty" | "follow-up" | "current-lead" | "diagnostics";
+type ActiveMode = "empty" | "follow-up" | "current-lead" | "call-leads" | "diagnostics";
 type OverrideMode = "parsed" | "quoted_false" | "quoted_true";
 
 type FramePingResponse = {
@@ -132,12 +166,22 @@ const followUpPanel = document.querySelector<HTMLElement>("#follow-up-panel")!;
 const currentLeadPanel = document.querySelector<HTMLElement>(
   "#current-lead-panel",
 )!;
+const callLeadsPanel = document.querySelector<HTMLElement>("#call-leads-panel")!;
 const scanCurrentPageBtn =
   document.querySelector<HTMLButtonElement>("#scan-current-page")!;
 const syncCurrentLeadBtn =
   document.querySelector<HTMLButtonElement>("#sync-current-lead")!;
 const scanFollowUpBtn =
   document.querySelector<HTMLButtonElement>("#scan-follow-up")!;
+const scanCallLeadsBtn =
+  document.querySelector<HTMLButtonElement>("#scan-call-leads")!;
+const syncCallSelectedBtn =
+  document.querySelector<HTMLButtonElement>("#sync-call-selected")!;
+const syncCallAllBtn = document.querySelector<HTMLButtonElement>("#sync-call-all")!;
+const selectAllCallBtn =
+  document.querySelector<HTMLButtonElement>("#select-all-call")!;
+const deselectAllCallBtn =
+  document.querySelector<HTMLButtonElement>("#deselect-all-call")!;
 const syncSelectedBtn =
   document.querySelector<HTMLButtonElement>("#sync-selected")!;
 const syncAllBtn = document.querySelector<HTMLButtonElement>("#sync-all")!;
@@ -163,6 +207,9 @@ let activeMode: ActiveMode = "empty";
 let parsedRows: FollowUpRow[] = [];
 let selectedRowIds = new Set<string>();
 let currentLeadPreview: CurrentLeadPreview | undefined;
+let callLeadPreview: CallLeadPreviewResponse | undefined;
+let callLeadEnrichmentRows: CallLeadEnrichmentPreview[] = [];
+let selectedCallRowIds = new Set<string>();
 let currentLeadOverride: OverrideMode = "parsed";
 let currentLeadResult: RowSyncResult | undefined;
 let syncResults = new Map<string, RowSyncResult>();
@@ -207,6 +254,9 @@ diagnoseBtn.addEventListener("click", async () => {
   parsedRows = [];
   selectedRowIds = new Set();
   currentLeadPreview = undefined;
+  callLeadPreview = undefined;
+  callLeadEnrichmentRows = [];
+  selectedCallRowIds = new Set();
   currentLeadResult = undefined;
   syncResults = new Map();
   setBusy(true);
@@ -256,10 +306,101 @@ scanCurrentPageBtn.addEventListener("click", async () => {
   await loadCurrentLeadPreview({ preserveOverride: false });
 });
 
+scanCallLeadsBtn.addEventListener("click", async () => {
+  statusEl.textContent = "Scanning Call Leads / Booked Call Leads view…";
+  activeMode = "call-leads";
+  parsedRows = [];
+  selectedRowIds = new Set();
+  callLeadEnrichmentRows = [];
+  selectedCallRowIds = new Set();
+  currentLeadPreview = undefined;
+  currentLeadResult = undefined;
+  syncResults = new Map();
+  setBusy(true);
+
+  try {
+    const response = await sendActiveTabMessage<CallLeadPreviewResponse>({
+      type: "PARSE_CALL_LEAD_TABLES",
+    });
+
+    callLeadPreview = response;
+    const enrichmentPayloads = callLeadRowsToEnrichmentPayloads(response);
+    callLeadEnrichmentRows = enrichmentPayloads.map((payload) => ({ payload }));
+    if (enrichmentPayloads.length > 0) {
+      const previewResults = await previewCallLeadEnrichment(enrichmentPayloads);
+      callLeadEnrichmentRows = enrichmentPayloads.map((payload) => ({
+        payload,
+        result: previewResults.find((result) => result.row_id === payload.row_id),
+      }));
+      selectedCallRowIds = new Set(
+        callLeadEnrichmentRows.filter(canSyncCallEnrichmentRow).map((row) => row.payload.row_id),
+      );
+    }
+    render();
+
+    if (!response?.pageFound) {
+      if ((response?.frameResponses ?? 0) === 0) {
+        statusEl.textContent =
+          "Content script did not respond in any frame. Reload the Granot tab and the add-on.";
+      } else {
+        statusEl.textContent =
+          "No Booked Jobs or Follow Up Estimates tables found on this tab.";
+      }
+      return;
+    }
+
+    const totalRows = response.sections.reduce(
+      (total, section) => total + section.rows.length,
+      0,
+    );
+    const updateable = callLeadEnrichmentRows.filter(canSyncCallEnrichmentRow).length;
+    statusEl.textContent = `Preview ready: found ${totalRows} call lead row(s), ${updateable} updateable Follow Up row(s).`;
+  } catch (err) {
+    callLeadPreview = undefined;
+    callLeadEnrichmentRows = [];
+    selectedCallRowIds = new Set();
+    render();
+    statusEl.textContent = `Could not scan the Call Leads view: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
+  } finally {
+    setBusy(false);
+  }
+});
+
+selectAllCallBtn.addEventListener("click", () => {
+  selectedCallRowIds = new Set(
+    callLeadEnrichmentRows.filter(canSyncCallEnrichmentRow).map((row) => row.payload.row_id),
+  );
+  render();
+});
+
+deselectAllCallBtn.addEventListener("click", () => {
+  selectedCallRowIds = new Set();
+  render();
+});
+
+syncCallSelectedBtn.addEventListener("click", async () => {
+  await syncCallRows(
+    callLeadEnrichmentRows
+      .filter((row) => selectedCallRowIds.has(row.payload.row_id))
+      .map((row) => row.payload),
+  );
+});
+
+syncCallAllBtn.addEventListener("click", async () => {
+  await syncCallRows(
+    callLeadEnrichmentRows.filter(canSyncCallEnrichmentRow).map((row) => row.payload),
+  );
+});
+
 scanFollowUpBtn.addEventListener("click", async () => {
   statusEl.textContent = "Scanning Follow Up Estimates…";
   activeMode = "follow-up";
   currentLeadPreview = undefined;
+  callLeadPreview = undefined;
+  callLeadEnrichmentRows = [];
+  selectedCallRowIds = new Set();
   currentLeadResult = undefined;
   syncResults = new Map();
 
@@ -338,6 +479,9 @@ async function loadCurrentLeadPreview(options: {
     activeMode = "current-lead";
     parsedRows = [];
     selectedRowIds = new Set();
+    callLeadPreview = undefined;
+    callLeadEnrichmentRows = [];
+    selectedCallRowIds = new Set();
     syncResults = new Map();
     currentLeadResult = undefined;
 
@@ -465,6 +609,42 @@ async function syncRows(rows: FollowUpRow[]) {
   render();
 }
 
+async function syncCallRows(rows: CallLeadEnrichmentRowPayload[]) {
+  if (rows.length === 0) {
+    statusEl.textContent = "No supported call lead rows selected for sync.";
+    return;
+  }
+
+  setBusy(true);
+  statusEl.textContent = `Syncing ${rows.length} call lead row(s)…`;
+
+  try {
+    const results = await syncCallLeadEnrichment(rows);
+    callLeadEnrichmentRows = callLeadEnrichmentRows.map((preview) => ({
+      ...preview,
+      result:
+        results.find((result) => result.row_id === preview.payload.row_id) ??
+        preview.result,
+    }));
+    selectedCallRowIds = new Set(
+      callLeadEnrichmentRows.filter(canSyncCallEnrichmentRow).map((row) => row.payload.row_id),
+    );
+    const updated = results.filter((result) => result.status === "updated").length;
+    const unchanged = results.filter((result) => result.status === "unchanged").length;
+    const failed = results.filter(
+      (result) => result.status === "failed" || result.status === "conflict",
+    ).length;
+    statusEl.textContent = `Call sync complete. Updated ${updated}, unchanged ${unchanged}, failed/conflict ${failed}.`;
+  } catch (err) {
+    statusEl.textContent = `Call sync failed: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
+  } finally {
+    setBusy(false);
+    render();
+  }
+}
+
 async function syncLeadCandidates(
   candidates: LeadSyncCandidate[],
   onResult: (id: string, result: RowSyncResult) => void,
@@ -536,7 +716,8 @@ function isFrameAggregatedMessage(
     isRecord(message) &&
     (message.type === "DUMP_TABLES" ||
       message.type === "PARSE_FOLLOW_UP_ROWS" ||
-      message.type === "PARSE_CURRENT_FORM_LEAD")
+      message.type === "PARSE_CURRENT_FORM_LEAD" ||
+      message.type === "PARSE_CALL_LEAD_TABLES")
   );
 }
 
@@ -603,6 +784,18 @@ function aggregateFrameResponses<T>(
     } as T;
   }
 
+  if (message.type === "PARSE_CALL_LEAD_TABLES") {
+    const foundResponse = validResponses.find(
+      (response) => response.pageFound === true,
+    );
+    const aggregated = foundResponse ?? { ok: true, pageFound: false, sections: [] };
+    return {
+      ...aggregated,
+      frameResponses: validResponses.length,
+      frameCount: responses.length,
+    } as T;
+  }
+
   return validResponses[0] as T;
 }
 
@@ -631,6 +824,8 @@ function render() {
   renderSummary();
   if (activeMode === "current-lead") {
     renderCurrentLead();
+  } else if (activeMode === "call-leads") {
+    renderCallLeadPreview();
   } else {
     renderRows();
   }
@@ -641,11 +836,17 @@ function render() {
 function updateActivePanels() {
   followUpPanel.classList.toggle("active", activeMode === "follow-up");
   currentLeadPanel.classList.toggle("active", activeMode === "current-lead");
+  callLeadsPanel.classList.toggle("active", activeMode === "call-leads");
 }
 
 function renderSummary() {
   if (activeMode === "current-lead") {
     renderCurrentLeadSummary();
+    return;
+  }
+
+  if (activeMode === "call-leads") {
+    renderCallLeadSummary();
     return;
   }
 
@@ -690,6 +891,29 @@ function renderCurrentLeadSummary() {
 
   summaryEl.hidden = false;
   summaryEl.textContent = action;
+}
+
+function renderCallLeadSummary() {
+  if (!callLeadPreview?.pageFound) {
+    summaryEl.hidden = true;
+    summaryEl.textContent = "";
+    return;
+  }
+
+  const foundSections = callLeadPreview.sections.filter(
+    (section) => section.tableFound,
+  );
+  const totalRows = foundSections.reduce(
+    (total, section) => total + section.rows.length,
+    0,
+  );
+  const updateable = callLeadEnrichmentRows.filter(canSyncCallEnrichmentRow).length;
+  const selected = callLeadEnrichmentRows.filter((row) =>
+    selectedCallRowIds.has(row.payload.row_id),
+  ).length;
+
+  summaryEl.hidden = false;
+  summaryEl.textContent = `${foundSections.length} table(s) found. Showing ${totalRows} row(s). ${updateable} updateable Follow Up row(s), ${selected} selected.`;
 }
 
 function renderCurrentLead() {
@@ -786,6 +1010,125 @@ function renderCurrentLead() {
   rowsEl.append(rowEl);
 }
 
+function renderCallLeadPreview() {
+  rowsEl.textContent = "";
+
+  if (!callLeadPreview?.sections.length) {
+    return;
+  }
+
+  for (const section of callLeadPreview.sections) {
+    const sectionEl = document.createElement("section");
+    sectionEl.className = "preview-section";
+
+    const headingEl = document.createElement("div");
+    headingEl.className = "preview-heading";
+
+    const titleEl = document.createElement("span");
+    titleEl.textContent = section.title;
+    headingEl.append(titleEl);
+
+    const countBadge = document.createElement("span");
+    countBadge.className = section.tableFound ? "badge ok" : "badge warn";
+    countBadge.textContent = section.tableFound
+      ? `${section.rows.length} row(s)`
+      : "not found";
+    headingEl.append(countBadge);
+    sectionEl.append(headingEl);
+
+    if (!section.tableFound) {
+      const emptyEl = document.createElement("p");
+      emptyEl.textContent = `No ${section.title} table was found on this page.`;
+      sectionEl.append(emptyEl);
+      rowsEl.append(sectionEl);
+      continue;
+    }
+
+    for (const row of section.rows) {
+      sectionEl.append(renderCallLeadRow(section.key, row));
+    }
+
+    rowsEl.append(sectionEl);
+  }
+}
+
+function renderCallLeadRow(
+  sectionKey: CallLeadPreviewSection["key"],
+  row: CallLeadPreviewRow,
+): HTMLDivElement {
+  const enrichment =
+    sectionKey === "followUpEstimates"
+      ? callLeadEnrichmentRows.find((preview) => preview.payload.row_id === row.id)
+      : undefined;
+  const result = enrichment?.result;
+  const rowEl = document.createElement("div");
+  rowEl.className = `row preview-row ${
+    sectionKey === "followUpEstimates" && !canSyncCallEnrichmentRow(enrichment)
+      ? "unsyncable"
+      : ""
+  }`;
+
+  const headerEl = document.createElement("div");
+  headerEl.className = "row-header";
+
+  if (sectionKey === "followUpEstimates") {
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.disabled = !canSyncCallEnrichmentRow(enrichment);
+    checkbox.checked = selectedCallRowIds.has(row.id);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        selectedCallRowIds.add(row.id);
+      } else {
+        selectedCallRowIds.delete(row.id);
+      }
+      render();
+    });
+    headerEl.append(checkbox);
+  }
+
+  const titleEl = document.createElement("span");
+  titleEl.className = "row-title";
+  const displayNumber = row.values.no || String(row.rowIndex);
+  const jobNo = row.values.job_no ? ` ${row.values.job_no}` : "";
+  const customer = row.values.customer ? ` - ${row.values.customer}` : "";
+  titleEl.textContent = `#${displayNumber}${jobNo}${customer}`;
+  headerEl.append(titleEl);
+  if (result) {
+    headerEl.append(callLeadResultBadge(result.status));
+  } else if (sectionKey === "bookedJobs") {
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = "preview only";
+    headerEl.append(badge);
+  }
+  rowEl.append(headerEl);
+
+  if (result) {
+    const metaEl = document.createElement("div");
+    metaEl.className = "row-meta";
+    metaEl.textContent = [
+      result.message,
+      result.call_lead_id ? `call lead: ${result.call_lead_id}` : undefined,
+      result.matched_phone_number ? `matched phone: ${result.matched_phone_number}` : undefined,
+      result.changes.length ? `changes: ${result.changes.join(", ")}` : undefined,
+      ...result.warnings,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+    rowEl.append(metaEl);
+  }
+
+  const fieldGrid = document.createElement("div");
+  fieldGrid.className = "field-grid preview-grid";
+  for (const [label, value] of Object.entries(row.values)) {
+    fieldGrid.append(fieldBlock(label, value || "blank"));
+  }
+  rowEl.append(fieldGrid);
+
+  return rowEl;
+}
+
 function fieldBlock(label: string, value: string): HTMLDivElement {
   const wrapper = document.createElement("div");
   wrapper.className = "field";
@@ -800,6 +1143,48 @@ function fieldBlock(label: string, value: string): HTMLDivElement {
 
   wrapper.append(labelEl, valueEl);
   return wrapper;
+}
+
+function callLeadRowsToEnrichmentPayloads(
+  preview: CallLeadPreviewResponse,
+): CallLeadEnrichmentRowPayload[] {
+  const followUp = preview.sections.find((section) => section.key === "followUpEstimates");
+  if (!followUp) {
+    return [];
+  }
+
+  return followUp.rows.map((row) => ({
+    row_id: row.id,
+    row_index: row.rowIndex,
+    job_no: getPreviewValue(row, "job_no"),
+    customer: getPreviewValue(row, "customer"),
+    phone: getPreviewValue(row, "phone"),
+    email: getPreviewValue(row, "email"),
+    from_zip: getPreviewValue(row, "from_zip"),
+    to_zip: getPreviewValue(row, "to_zip"),
+    est_cf: getPreviewValue(row, "est_cf"),
+  }));
+}
+
+function getPreviewValue(row: CallLeadPreviewRow, key: string): string | undefined {
+  const value = row.values[key];
+  return value?.trim() || undefined;
+}
+
+function canSyncCallEnrichmentRow(row?: CallLeadEnrichmentPreview): boolean {
+  return row?.result?.status === "updateable";
+}
+
+function callLeadResultBadge(status: CallLeadEnrichmentResult["status"]): HTMLSpanElement {
+  const badge = document.createElement("span");
+  badge.className =
+    status === "updateable" || status === "updated"
+      ? "badge ok"
+      : status === "failed" || status === "conflict" || status === "invalid"
+        ? "badge error"
+        : "badge";
+  badge.textContent = status;
+  return badge;
 }
 
 function appendOverrideOption(
@@ -873,10 +1258,20 @@ function updateControls() {
   const hasRows = parsedRows.length > 0;
   const hasSyncableRows = parsedRows.some(isSyncableRow);
   const hasSelectedRows = parsedRows.some((row) => selectedRowIds.has(row.id));
+  const hasCallRows = callLeadEnrichmentRows.length > 0;
+  const hasSyncableCallRows = callLeadEnrichmentRows.some(canSyncCallEnrichmentRow);
+  const hasSelectedCallRows = callLeadEnrichmentRows.some((row) =>
+    selectedCallRowIds.has(row.payload.row_id),
+  );
 
   scanCurrentPageBtn.disabled = isBusy;
   syncCurrentLeadBtn.disabled = isBusy || !canSyncCurrentLead();
   scanFollowUpBtn.disabled = isBusy;
+  scanCallLeadsBtn.disabled = isBusy;
+  syncCallSelectedBtn.disabled = isBusy || !hasSelectedCallRows;
+  syncCallAllBtn.disabled = isBusy || !hasSyncableCallRows;
+  selectAllCallBtn.disabled = isBusy || !hasSyncableCallRows;
+  deselectAllCallBtn.disabled = isBusy || !hasCallRows;
   dumpBtn.disabled = isBusy;
   diagnoseBtn.disabled = isBusy;
   openDetachedBtn.disabled = isBusy || isDetachedWindow;
@@ -1142,6 +1537,7 @@ function summariseDiagnostics(report: DiagnosticsReport): string {
 function renderDiagnostics(report: DiagnosticsReport): void {
   followUpPanel.classList.remove("active");
   currentLeadPanel.classList.remove("active");
+  callLeadsPanel.classList.remove("active");
   summaryEl.hidden = false;
   summaryEl.textContent = `${report.manifestName} v${report.manifestVersion} (${report.browser}, MV${report.manifestVersionNumber}) — runtime id ${report.manifestRuntimeId}`;
 

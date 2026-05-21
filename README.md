@@ -57,6 +57,7 @@ WXT watches files and rebuilds automatically. Reload the extension in the browse
 ```bash
 pnpm build          # Chrome
 pnpm build:firefox  # Firefox
+pnpm build:zip      # Chrome folder + .zip in one command
 pnpm zip            # Chrome .zip for store sideload
 pnpm zip:firefox    # Firefox .zip
 ```

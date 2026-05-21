@@ -9,7 +9,7 @@ alwaysApply: false
 - This WXT extension supports Chrome and Firefox. Keep browser APIs behind `webextension-polyfill`/WXT globals so `pnpm build` and `pnpm build:firefox` keep working.
 - `src/config.ts` owns CRM URL patterns, `VANTAGE_API_BASE`, and bundled `VITE_VANTAGE_API_SECRET`. The secret is sent as `x-api-secret` to protected Vantage `/api/v1` routes.
 - `src/entrypoints/granot-crm.content.ts` is the page reader. It must read the current Granot DOM on demand and return structured data to the popup; avoid mutating or adding controls to the Granot CRM page. The content script declares `allFrames: true` so it runs inside Granot's nested framesets/iframes, not just the top frame.
-- Only parse the visible `Follow Up Estimates` section. Do not sync `Booked Jobs` rows, and do not use CSV links unless a future task explicitly changes the source of truth.
+- Form-lead sync only uses the visible `Follow Up Estimates` section. The Call Leads / Booked Call Leads workflow may parse `Booked Jobs` rows for popup preview, but do not sync `Booked Jobs` rows or use CSV links unless a future task explicitly changes the source of truth.
 - Granot table `ref_no` contains the Mongo `_id` for the Vantage `FormLead`. Granot `prior` is the source for Vantage `quoted`.
 - Treat only exact `prior` values `0` and `1` as syncable: `0 -> quoted=false`, `1 -> quoted=true`. Show other values as unsupported and skip them by default.
 - `src/entrypoints/popup/` owns the user workflow: scan, preview parsed rows, select/deselect rows, sync selected rows, and sync all supported rows.
