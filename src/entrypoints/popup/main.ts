@@ -179,6 +179,7 @@ type FormLeadsState = {
   autoStartedAt?: string;
   hasScanned: boolean;
   logTablesOpen: boolean;
+  followUpOpen: boolean;
 };
 
 type CallLeadsState = {
@@ -195,6 +196,7 @@ type CallLeadsState = {
   autoStartedAt?: string;
   hasScanned: boolean;
   logTablesOpen: boolean;
+  followUpOpen: boolean;
   bookedOpen: boolean;
 };
 
@@ -407,6 +409,7 @@ const state: AppState = {
     autoRunning: false,
     hasScanned: false,
     logTablesOpen: false,
+    followUpOpen: true,
   },
   callLeads: {
     enrichmentRows: [],
@@ -419,7 +422,8 @@ const state: AppState = {
     autoRunning: false,
     hasScanned: false,
     logTablesOpen: false,
-    bookedOpen: false,
+    followUpOpen: true,
+    bookedOpen: true,
   },
   formEditLead: {
     override: "parsed",
@@ -757,8 +761,12 @@ function setStatus(message: string, options?: { tone?: "info" | "error" }) {
 function setBusy(nextIsBusy: boolean) {
   state.isBusy = nextIsBusy;
   updateGlobalControls();
-  renderFormLeadsControls();
-  renderCallLeadsControls();
+  // Re-render the whole Form Leads / Call Leads workspaces (not just their
+  // top-level controls) so per-row Sync buttons pick up the new busy state.
+  // Without this, the row list rendered earlier in an async scan/sync stays
+  // disabled until something else re-renders it.
+  renderFormLeads();
+  renderCallLeads();
   renderFormEditLeadControls();
 }
 
@@ -831,32 +839,46 @@ function renderFormLeadsRows() {
     shouldShowFollowUpRow(row),
   );
 
+  const syncableCount = fl.parsedRows.filter(isSyncableRow).length;
+  const summaryText = `Follow Up Estimates · ${fl.parsedRows.length} row(s) · ${syncableCount} syncable`;
+  const accordion = buildTablePreviewAccordion({
+    summaryText,
+    open: fl.followUpOpen,
+    onToggle: (open) => {
+      fl.followUpOpen = open;
+    },
+  });
+
   if (rowsToRender.length === 0) {
     const note = document.createElement("p");
     note.className = "status-text";
     note.style.margin = "8px 0 0";
     note.textContent =
       "No rows match the selected progress filter. Switch the filter back to Show All to see everything.";
-    dom.fl.rows.append(note);
-    return;
+    accordion.body.append(note);
+  } else {
+    for (const row of rowsToRender) {
+      accordion.body.append(buildFormLeadRowElement(row));
+    }
   }
 
-  for (const row of rowsToRender) {
-    dom.fl.rows.append(buildFormLeadRowElement(row));
-  }
+  dom.fl.rows.append(accordion.details);
 }
 
 function buildFormLeadRowElement(row: FollowUpRow): HTMLDivElement {
   const fl = state.formLeads;
+  const syncable = isSyncableRow(row);
+  const result = fl.syncResults.get(row.id);
+
   const rowEl = document.createElement("div");
-  rowEl.className = `row ${isSyncableRow(row) ? "" : "unsyncable"}`;
+  rowEl.className = `row ${syncable ? "" : "unsyncable"}`;
 
   const headerEl = document.createElement("div");
   headerEl.className = "row-header";
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
-  checkbox.disabled = !isSyncableRow(row) || state.isBusy;
+  checkbox.disabled = !syncable || state.isBusy;
   checkbox.checked = fl.selectedRowIds.has(row.id);
   checkbox.addEventListener("change", () => {
     if (checkbox.checked) {
@@ -876,17 +898,28 @@ function buildFormLeadRowElement(row: FollowUpRow): HTMLDivElement {
   headerEl.append(titleEl);
 
   headerEl.append(statusBadge(row));
-  const result = fl.syncResults.get(row.id);
   if (result) {
     headerEl.append(resultBadge(result));
   }
 
   const actions = document.createElement("div");
   actions.className = "row-header__actions";
-  if (isSyncableRow(row)) {
+
+  // Inline no-op / status hint next to Sync button.
+  const noOpMessage = getFormLeadNoOpMessage(result);
+  if (syncable && noOpMessage) {
+    const hint = document.createElement("span");
+    hint.className = "row-noop-hint";
+    hint.textContent = noOpMessage;
+    actions.append(hint);
+  }
+
+  if (syncable) {
     const syncBtn = document.createElement("button");
     syncBtn.className = "btn-sm";
     syncBtn.textContent = "Sync";
+    // Only dim while a global sync/scan is in flight; never disable just
+    // because the row is unchanged / already up to date.
     syncBtn.disabled = state.isBusy;
     syncBtn.addEventListener("click", () => {
       void syncRows([row]);
@@ -897,27 +930,48 @@ function buildFormLeadRowElement(row: FollowUpRow): HTMLDivElement {
 
   rowEl.append(headerEl);
 
-  const metaEl = document.createElement("div");
-  metaEl.className = "row-meta";
-  metaEl.textContent = [
-    `ref_no: ${row.refNo || "missing"}`,
-    `Granot prior: ${row.prior || "missing"}`,
-    `target quoted: ${typeof row.quoted === "boolean" ? row.quoted : "n/a"}`,
-    `target cubic_feet: ${
-      typeof row.cubicFeet === "number" ? row.cubicFeet : "n/a"
-    }`,
-    `job_no: ${row.jobNo || "n/a"}`,
-    `source: ${row.source || "n/a"}`,
-    row.email ? `email: ${row.email}` : undefined,
-    row.phone ? `phone: ${row.phone}` : undefined,
-    row.reason,
-    result?.message,
-  ]
-    .filter(Boolean)
-    .join(" | ");
-  rowEl.append(metaEl);
+  const fieldGrid = document.createElement("div");
+  fieldGrid.className = "field-grid";
+  for (const [label, value] of Object.entries(formLeadRowFields(row))) {
+    fieldGrid.append(fieldBlock(label, value || "blank"));
+  }
+  rowEl.append(fieldGrid);
+
+  const messageParts = [row.reason, result?.message].filter(
+    Boolean,
+  ) as string[];
+  if (messageParts.length > 0) {
+    const metaEl = document.createElement("div");
+    metaEl.className = "row-meta";
+    metaEl.textContent = messageParts.join(" | ");
+    rowEl.append(metaEl);
+  }
 
   return rowEl;
+}
+
+function formLeadRowFields(row: FollowUpRow): Record<string, string> {
+  return {
+    no: row.displayNumber || String(row.rowIndex),
+    job_no: row.jobNo ?? "",
+    source: row.source ?? "",
+    ref_no: row.refNo || "",
+    prior: row.prior || "",
+    est_cf: row.estCf ?? "",
+    cubic_feet: typeof row.cubicFeet === "number" ? String(row.cubicFeet) : "",
+    quoted: typeof row.quoted === "boolean" ? String(row.quoted) : "",
+    customer: row.customer ?? "",
+    phone: row.phone ?? "",
+    email: row.email ?? "",
+  };
+}
+
+function getFormLeadNoOpMessage(result?: RowSyncResult): string | undefined {
+  if (!result) return undefined;
+  if (result.status === "unchanged") {
+    return result.message;
+  }
+  return undefined;
 }
 
 function renderFormLeadsHistory() {
@@ -1125,23 +1179,37 @@ function renderCallLeadsRows() {
       shouldShowCallFollowUpRow(row),
     );
 
+    const updateable = cl.enrichmentRows.filter(
+      canSyncCallEnrichmentRow,
+    ).length;
+    const summaryText = `Follow Up Estimates · ${followUp.rows.length} row(s) · ${updateable} updateable`;
+    const accordion = buildTablePreviewAccordion({
+      summaryText,
+      open: cl.followUpOpen,
+      onToggle: (open) => {
+        cl.followUpOpen = open;
+      },
+    });
+
     if (visibleRows.length === 0) {
       const note = document.createElement("p");
       note.className = "status-text";
       note.style.margin = "8px 0 0";
       note.textContent =
         "No rows match the selected progress filter. Switch the filter back to Show All to see everything.";
-      dom.cl.rows.append(note);
+      accordion.body.append(note);
     } else {
       for (const row of visibleRows) {
-        dom.cl.rows.append(buildCallLeadRowElement(row));
+        accordion.body.append(buildCallLeadRowElement(row));
       }
     }
+
+    dom.cl.rows.append(accordion.details);
   } else {
     dom.cl.rowlistCard.style.display = "none";
   }
 
-  // Booked Jobs (collapsed-by-default accordion)
+  // Booked Jobs (table-level accordion; default open after scan)
   renderCallLeadsBookedAccordion();
 }
 
@@ -1152,10 +1220,9 @@ function renderCallLeadsBookedAccordion() {
   const booked = cl.preview?.sections.find((s) => s.key === "bookedJobs");
   if (!booked) return;
 
-  const card = document.createElement("div");
-  card.className = "card";
-
   if (!booked.tableFound) {
+    const card = document.createElement("div");
+    card.className = "card";
     const title = document.createElement("h3");
     title.className = "card__title";
     title.textContent = "Booked Jobs";
@@ -1168,82 +1235,110 @@ function renderCallLeadsBookedAccordion() {
     return;
   }
 
-  const details = document.createElement("details");
-  details.className = "booked-jobs";
-  details.open = cl.bookedOpen;
-  details.addEventListener("toggle", () => {
-    cl.bookedOpen = details.open;
-  });
-
-  const summary = document.createElement("summary");
   const bookedUpdateable = cl.bookedReconciliationRows.filter(
     canSyncBookedCallReconciliationRow,
   ).length;
-  summary.textContent = `Booked Jobs · ${booked.rows.length} job(s) · ${bookedUpdateable} updateable by job_no`;
-  details.append(summary);
-
-  const body = document.createElement("div");
-  body.style.padding = "0 12px 12px";
-  body.style.display = "grid";
-  body.style.gap = "6px";
+  const summaryText = `Booked Jobs · ${booked.rows.length} job(s) · ${bookedUpdateable} updateable by job_no`;
+  const accordion = buildTablePreviewAccordion({
+    summaryText,
+    open: cl.bookedOpen,
+    onToggle: (open) => {
+      cl.bookedOpen = open;
+    },
+  });
 
   for (const row of booked.rows) {
     const reconciliation = cl.bookedReconciliationRows.find(
       (preview) => preview.payload.row_id === row.id,
     );
-    const result = reconciliation?.result;
-    const rowEl = document.createElement("div");
-    rowEl.className = `row ${canSyncBookedCallReconciliationRow(reconciliation) ? "" : "unsyncable"}`;
-
-    const headerEl = document.createElement("div");
-    headerEl.className = "row-header";
-
-    const titleEl = document.createElement("span");
-    titleEl.className = "row-title";
-    const displayNumber = row.values.no || String(row.rowIndex);
-    const jobNo = row.values.job_no ? ` ${row.values.job_no}` : "";
-    const customer = row.values.customer ? ` - ${row.values.customer}` : "";
-    titleEl.textContent = `#${displayNumber}${jobNo}${customer}`;
-    headerEl.append(titleEl);
-
-    const badge = document.createElement("span");
-    if (result) {
-      headerEl.append(callLeadResultBadge(result.status));
-    } else {
-      badge.className = "badge muted";
-      badge.textContent = "booked";
-      headerEl.append(badge);
-    }
-    rowEl.append(headerEl);
-
-    if (result) {
-      const metaEl = document.createElement("div");
-      metaEl.className = "row-meta";
-      metaEl.textContent = [
-        result.message,
-        result.booking_id ? `booking: ${result.booking_id}` : undefined,
-        result.call_lead_id ? `call lead: ${result.call_lead_id}` : undefined,
-        result.changes.length ? `changes: ${result.changes.join(", ")}` : undefined,
-        ...result.warnings,
-      ]
-        .filter(Boolean)
-        .join(" | ");
-      rowEl.append(metaEl);
-    }
-
-    const fieldGrid = document.createElement("div");
-    fieldGrid.className = "field-grid";
-    for (const [label, value] of Object.entries(row.values)) {
-      fieldGrid.append(fieldBlock(label, value || "blank"));
-    }
-    rowEl.append(fieldGrid);
-
-    body.append(rowEl);
+    accordion.body.append(buildBookedRowElement(row, reconciliation));
   }
 
-  details.append(body);
-  card.append(details);
-  dom.cl.bookedContainer.append(card);
+  dom.cl.bookedContainer.append(accordion.details);
+}
+
+function buildBookedRowElement(
+  row: CallLeadPreviewRow,
+  reconciliation?: BookedCallLeadReconciliationPreview,
+): HTMLDivElement {
+  const result = reconciliation?.result;
+  const canSync = canSyncBookedCallReconciliationRow(reconciliation);
+
+  const rowEl = document.createElement("div");
+  rowEl.className = `row ${canSync ? "" : "unsyncable"}`;
+
+  const headerEl = document.createElement("div");
+  headerEl.className = "row-header";
+
+  const titleEl = document.createElement("span");
+  titleEl.className = "row-title";
+  const displayNumber = row.values.no || String(row.rowIndex);
+  const jobNo = row.values.job_no ? ` ${row.values.job_no}` : "";
+  const customer = row.values.customer ? ` - ${row.values.customer}` : "";
+  titleEl.textContent = `#${displayNumber}${jobNo}${customer}`;
+  headerEl.append(titleEl);
+
+  if (result) {
+    headerEl.append(callLeadResultBadge(result.status));
+  } else {
+    const badge = document.createElement("span");
+    badge.className = "badge muted";
+    badge.textContent = "booked";
+    headerEl.append(badge);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "row-header__actions";
+
+  const noOpMessage = getCallLeadNoOpMessage(result?.status, result?.message);
+  if (canSync && noOpMessage) {
+    const hint = document.createElement("span");
+    hint.className = "row-noop-hint";
+    hint.textContent = noOpMessage;
+    actions.append(hint);
+  }
+
+  if (canSync && reconciliation) {
+    const syncBtn = document.createElement("button");
+    syncBtn.className = "btn-sm";
+    syncBtn.textContent = "Sync";
+    // Only dim while a global sync/scan is in flight; never disable just
+    // because the row is unchanged / already up to date.
+    syncBtn.disabled = state.isBusy;
+    syncBtn.addEventListener("click", () => {
+      void syncBookedCallRows([reconciliation.payload]);
+    });
+    actions.append(syncBtn);
+  }
+  headerEl.append(actions);
+  rowEl.append(headerEl);
+
+  const fieldGrid = document.createElement("div");
+  fieldGrid.className = "field-grid";
+  for (const [label, value] of Object.entries(row.values)) {
+    fieldGrid.append(fieldBlock(label, value || "blank"));
+  }
+  rowEl.append(fieldGrid);
+
+  if (result) {
+    const metaParts = [
+      result.message,
+      result.booking_id ? `booking: ${result.booking_id}` : undefined,
+      result.call_lead_id ? `call lead: ${result.call_lead_id}` : undefined,
+      result.changes.length
+        ? `changes: ${result.changes.join(", ")}`
+        : undefined,
+      ...result.warnings,
+    ].filter(Boolean) as string[];
+    if (metaParts.length > 0) {
+      const metaEl = document.createElement("div");
+      metaEl.className = "row-meta";
+      metaEl.textContent = metaParts.join(" | ");
+      rowEl.append(metaEl);
+    }
+  }
+
+  return rowEl;
 }
 
 function buildCallLeadRowElement(row: CallLeadPreviewRow): HTMLDivElement {
@@ -1288,10 +1383,21 @@ function buildCallLeadRowElement(row: CallLeadPreviewRow): HTMLDivElement {
 
   const actions = document.createElement("div");
   actions.className = "row-header__actions";
+
+  const noOpMessage = getCallLeadNoOpMessage(result?.status, result?.message);
+  if (canSync && noOpMessage) {
+    const hint = document.createElement("span");
+    hint.className = "row-noop-hint";
+    hint.textContent = noOpMessage;
+    actions.append(hint);
+  }
+
   if (canSync && enrichment) {
     const syncBtn = document.createElement("button");
     syncBtn.className = "btn-sm";
     syncBtn.textContent = "Sync";
+    // Only dim while a global sync/scan is in flight; never disable just
+    // because the row is unchanged / already up to date.
     syncBtn.disabled = state.isBusy;
     syncBtn.addEventListener("click", () => {
       void syncCallRows([enrichment.payload]);
@@ -1301,10 +1407,15 @@ function buildCallLeadRowElement(row: CallLeadPreviewRow): HTMLDivElement {
   headerEl.append(actions);
   rowEl.append(headerEl);
 
+  const fieldGrid = document.createElement("div");
+  fieldGrid.className = "field-grid";
+  for (const [label, value] of Object.entries(row.values)) {
+    fieldGrid.append(fieldBlock(label, value || "blank"));
+  }
+  rowEl.append(fieldGrid);
+
   if (result) {
-    const metaEl = document.createElement("div");
-    metaEl.className = "row-meta";
-    metaEl.textContent = [
+    const metaParts = [
       result.message,
       result.call_lead_id ? `call lead: ${result.call_lead_id}` : undefined,
       result.matched_phone_number
@@ -1314,20 +1425,29 @@ function buildCallLeadRowElement(row: CallLeadPreviewRow): HTMLDivElement {
         ? `changes: ${result.changes.join(", ")}`
         : undefined,
       ...result.warnings,
-    ]
-      .filter(Boolean)
-      .join(" | ");
-    rowEl.append(metaEl);
+    ].filter(Boolean) as string[];
+    if (metaParts.length > 0) {
+      const metaEl = document.createElement("div");
+      metaEl.className = "row-meta";
+      metaEl.textContent = metaParts.join(" | ");
+      rowEl.append(metaEl);
+    }
   }
-
-  const fieldGrid = document.createElement("div");
-  fieldGrid.className = "field-grid";
-  for (const [label, value] of Object.entries(row.values)) {
-    fieldGrid.append(fieldBlock(label, value || "blank"));
-  }
-  rowEl.append(fieldGrid);
 
   return rowEl;
+}
+
+function getCallLeadNoOpMessage(
+  status?: string,
+  message?: string,
+): string | undefined {
+  if (status === "unchanged" && message) {
+    return message;
+  }
+  if (status === "updated" && message) {
+    return message;
+  }
+  return undefined;
 }
 
 function renderCallLeadsHistory() {
@@ -1835,6 +1955,30 @@ function buildLogGrid<T extends Record<string, unknown>>(
   return table;
 }
 
+function buildTablePreviewAccordion(options: {
+  summaryText: string;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+}): { details: HTMLDetailsElement; body: HTMLDivElement } {
+  const details = document.createElement("details");
+  details.className = "table-preview";
+  details.open = options.open;
+  details.addEventListener("toggle", () => {
+    options.onToggle(details.open);
+  });
+
+  const summary = document.createElement("summary");
+  summary.className = "table-preview__summary";
+  summary.textContent = options.summaryText;
+  details.append(summary);
+
+  const body = document.createElement("div");
+  body.className = "table-preview__body";
+  details.append(body);
+
+  return { details, body };
+}
+
 function fieldBlock(label: string, value: string): HTMLDivElement {
   const wrapper = document.createElement("div");
   wrapper.className = "field";
@@ -1989,6 +2133,7 @@ async function scanFollowUpTable(options: {
     );
     state.formLeads.syncResults = new Map();
     state.formLeads.hasScanned = true;
+    state.formLeads.followUpOpen = true;
     renderFormLeads();
     renderFormLeadsLogTables();
     if (!options.quiet) {
@@ -2023,14 +2168,18 @@ async function scanCallLeadsPreview(options: {
 
     state.callLeads.preview = response;
     state.callLeads.hasScanned = true;
+    state.callLeads.followUpOpen = true;
+    state.callLeads.bookedOpen = true;
     const enrichmentPayloads = callLeadRowsToEnrichmentPayloads(response);
     const bookedPayloads = callLeadRowsToBookedReconciliationPayloads(response);
     state.callLeads.enrichmentRows = enrichmentPayloads.map((payload) => ({
       payload,
     }));
-    state.callLeads.bookedReconciliationRows = bookedPayloads.map((payload) => ({
-      payload,
-    }));
+    state.callLeads.bookedReconciliationRows = bookedPayloads.map(
+      (payload) => ({
+        payload,
+      }),
+    );
 
     if (enrichmentPayloads.length > 0) {
       try {
@@ -2302,8 +2451,12 @@ async function syncBookedCallRows(
           preview.result,
       }));
 
-    const updated = results.filter((result) => result.status === "updated").length;
-    const unchanged = results.filter((result) => result.status === "unchanged").length;
+    const updated = results.filter(
+      (result) => result.status === "updated",
+    ).length;
+    const unchanged = results.filter(
+      (result) => result.status === "unchanged",
+    ).length;
     const failed = results.filter(
       (result) =>
         result.status === "failed" ||
@@ -2400,14 +2553,19 @@ async function syncLeadCandidates(
     try {
       const current = await getFormLeadById(candidate.refNo);
       const updatePayload = buildFormLeadUpdatePayload(candidate, current);
+      const syncPayload =
+        Object.keys(updatePayload).length > 0
+          ? updatePayload
+          : buildFormLeadSyncPayload(candidate);
+      await updateFormLead(candidate.refNo, syncPayload);
+
       if (Object.keys(updatePayload).length === 0) {
         unchanged += 1;
         onResult(candidate.id, {
           status: "unchanged",
-          message: buildUnchangedMessage(candidate),
+          message: `${buildUnchangedMessage(candidate)}; sync request sent anyway.`,
         });
       } else {
-        await updateFormLead(candidate.refNo, updatePayload);
         updated += 1;
         onResult(candidate.id, {
           status: "updated",
@@ -2438,6 +2596,19 @@ function buildFormLeadUpdatePayload(
     typeof candidate.cubicFeet === "number" &&
     current.cubic_feet !== candidate.cubicFeet
   ) {
+    payload.cubic_feet = candidate.cubicFeet;
+  }
+  return payload;
+}
+
+function buildFormLeadSyncPayload(
+  candidate: LeadSyncCandidate,
+): FormLeadUpdatePayload {
+  const payload: FormLeadUpdatePayload = {};
+  if (typeof candidate.quoted === "boolean") {
+    payload.quoted = candidate.quoted;
+  }
+  if (typeof candidate.cubicFeet === "number") {
     payload.cubic_feet = candidate.cubicFeet;
   }
   return payload;
@@ -2740,13 +2911,19 @@ function canSyncCurrentLead(): boolean {
 }
 
 function canSyncCallEnrichmentRow(row?: CallLeadEnrichmentPreview): boolean {
-  return row?.result?.status === "updateable";
+  return isSyncAllowedCallStatus(row?.result?.status);
 }
 
 function canSyncBookedCallReconciliationRow(
   row?: BookedCallLeadReconciliationPreview,
 ): boolean {
-  return row?.result?.status === "updateable";
+  return isSyncAllowedCallStatus(row?.result?.status);
+}
+
+function isSyncAllowedCallStatus(status?: string): boolean {
+  return (
+    status === "updateable" || status === "unchanged" || status === "updated"
+  );
 }
 
 function callLeadRowsToEnrichmentPayloads(
@@ -2774,7 +2951,9 @@ function callLeadRowsToEnrichmentPayloads(
 function callLeadRowsToBookedReconciliationPayloads(
   preview: CallLeadPreviewResponse,
 ): BookedCallLeadReconciliationRowPayload[] {
-  const booked = preview.sections.find((section) => section.key === "bookedJobs");
+  const booked = preview.sections.find(
+    (section) => section.key === "bookedJobs",
+  );
   if (!booked) {
     return [];
   }

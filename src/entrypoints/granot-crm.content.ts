@@ -652,7 +652,7 @@ function readRowsFromTable(
     const jobNo = getColumnValue(cells, header.columns.jobNo);
     const source = getColumnValue(cells, header.columns.source);
     const refNo = getColumnValue(cells, header.columns.refNo);
-    const prior = getColumnValue(cells, header.columns.prior);
+    const prior = normalizePriorValue(getColumnValue(cells, header.columns.prior));
     const estCf = getColumnValue(cells, header.columns.estCf);
     const baseRow = {
       id: `${rowIndex}:${refNo || jobNo || displayNumber || "row"}`,
@@ -721,6 +721,12 @@ function normalizeCellText(value: string | null): string {
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizePriorValue(value: string): string {
+  const normalized = normalizeCellText(value);
+  const match = normalized.match(/^(?:level\s*[-:]?\s*)?(\d+)$/i);
+  return match ? match[1] : normalized;
 }
 
 function getHeaderColumns(headers: string[]): Record<keyof typeof FIELD_ALIASES, number> {

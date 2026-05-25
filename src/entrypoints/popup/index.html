@@ -15,7 +15,10 @@
         height: 100%;
       }
       body {
-        font-family: system-ui, -apple-system, sans-serif;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
         min-width: 860px;
         min-height: 640px;
         color: #0f172a;
@@ -165,8 +168,13 @@
         animation: pulse 1.6s ease-in-out infinite;
       }
       @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.4; }
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
       }
 
       .app__main {
@@ -254,7 +262,9 @@
         display: block;
       }
       @keyframes spin {
-        to { transform: rotate(360deg); }
+        to {
+          transform: rotate(360deg);
+        }
       }
 
       /* ============================================================
@@ -482,12 +492,23 @@
         margin-left: auto;
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
+      }
+      .row-noop-hint {
+        font-size: 11px;
+        color: #64748b;
+        font-style: italic;
+        max-width: 280px;
+        line-height: 1.35;
+        text-align: right;
       }
       .row-meta {
         color: #475569;
         line-height: 1.5;
         font-size: 11.5px;
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px solid #e2e8f0;
       }
       .field-grid {
         display: grid;
@@ -643,10 +664,18 @@
         font-weight: 700;
         font-size: 12px;
       }
-      .cycle__row.is-ok .cycle__row-icon { color: #16a34a; }
-      .cycle__row.is-unchanged .cycle__row-icon { color: #94a3b8; }
-      .cycle__row.is-failed .cycle__row-icon { color: #dc2626; }
-      .cycle__row.is-skipped .cycle__row-icon { color: #ca8a04; }
+      .cycle__row.is-ok .cycle__row-icon {
+        color: #16a34a;
+      }
+      .cycle__row.is-unchanged .cycle__row-icon {
+        color: #94a3b8;
+      }
+      .cycle__row.is-failed .cycle__row-icon {
+        color: #dc2626;
+      }
+      .cycle__row.is-skipped .cycle__row-icon {
+        color: #ca8a04;
+      }
 
       /* ============================================================
          Diff table (Form Edit Lead)
@@ -770,9 +799,20 @@
       }
 
       /* ============================================================
-         Booked Jobs accordion (Call Leads workspace)
+         Table preview accordion (Form Leads + Call Leads tables)
          ============================================================ */
-      details.booked-jobs > summary {
+      details.table-preview {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #ffffff;
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+        margin-bottom: 12px;
+      }
+      .table-preview-wrapper {
+        margin-bottom: 12px;
+      }
+      details.table-preview > summary.table-preview__summary {
         list-style: none;
         cursor: pointer;
         padding: 10px 14px;
@@ -782,22 +822,28 @@
         display: flex;
         align-items: center;
         gap: 8px;
+        background: #f8fafc;
       }
-      details.booked-jobs > summary::-webkit-details-marker {
+      details.table-preview
+        > summary.table-preview__summary::-webkit-details-marker {
         display: none;
       }
-      details.booked-jobs > summary::before {
+      details.table-preview > summary.table-preview__summary::before {
         content: "▸";
         color: #94a3b8;
         font-size: 11px;
       }
-      details.booked-jobs[open] > summary::before {
+      details.table-preview[open] > summary.table-preview__summary::before {
         content: "▾";
         color: #475569;
       }
-      details.booked-jobs .row {
-        border-color: #e2e8f0;
-        background: #f8fafc;
+      details.table-preview[open] > summary.table-preview__summary {
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .table-preview__body {
+        padding: 10px 12px 12px;
+        display: grid;
+        gap: 6px;
       }
 
       /* ============================================================
@@ -899,7 +945,11 @@
             <span class="sidebar-tab__label">Form Leads</span>
             <span class="sidebar-tab__pulse" aria-hidden="true"></span>
           </button>
-          <button class="sidebar-tab" data-workspace="form-edit-lead" type="button">
+          <button
+            class="sidebar-tab"
+            data-workspace="form-edit-lead"
+            type="button"
+          >
             <span class="sidebar-tab__icon">✏️</span>
             <span class="sidebar-tab__label">Form Edit Lead</span>
             <span class="sidebar-tab__pulse" aria-hidden="true"></span>
@@ -954,7 +1004,9 @@
           <div class="card">
             <h3 class="card__title">Actions</h3>
             <div class="btn-row">
-              <button id="form-leads-scan" type="button">Scan Follow Up Table</button>
+              <button id="form-leads-scan" type="button">
+                Scan Follow Up Table
+              </button>
               <button id="form-leads-log" class="btn-secondary" type="button">
                 📋 Log Tables
               </button>
@@ -966,10 +1018,20 @@
               <button id="form-leads-sync-all" type="button" disabled>
                 Sync All Supported
               </button>
-              <button id="form-leads-select-all" class="btn-secondary" type="button" disabled>
+              <button
+                id="form-leads-select-all"
+                class="btn-secondary"
+                type="button"
+                disabled
+              >
                 Select All
               </button>
-              <button id="form-leads-deselect-all" class="btn-secondary" type="button" disabled>
+              <button
+                id="form-leads-deselect-all"
+                class="btn-secondary"
+                type="button"
+                disabled
+              >
                 Deselect All
               </button>
             </div>
@@ -985,25 +1047,52 @@
               <div class="explainer__body">
                 <p>Every <strong>interval</strong>, the loop will:</p>
                 <ol>
-                  <li>Re-scan the Granot <em>Follow Up Estimates</em> table on the active tab.</li>
-                  <li>For each row with a valid <code>ref_no</code> AND <code>prior</code> of 0 or 1:
+                  <li>
+                    Re-scan the Granot <em>Follow Up Estimates</em> table on the
+                    active tab.
+                  </li>
+                  <li>
+                    For each row with a valid <code>ref_no</code> AND
+                    <code>prior</code> of 0 or 1:
                     <ul>
                       <li>Look up the current Form Lead in Vantage.</li>
-                      <li>Compare its <code>quoted</code> and <code>cubic_feet</code>.</li>
+                      <li>
+                        Compare its <code>quoted</code> and
+                        <code>cubic_feet</code>.
+                      </li>
                       <li>If they differ, PATCH the Form Lead.</li>
                     </ul>
                   </li>
-                  <li>Rows with invalid/missing <code>ref_no</code>, missing <code>prior</code>, or <code>prior &gt; 1</code> are skipped.</li>
-                  <li>Booked jobs (<code>prior = 5</code>) are not in this table and are never touched.</li>
-                  <li>Errors do not stop the loop — they appear in the cycle history below.</li>
+                  <li>
+                    Rows with invalid/missing <code>ref_no</code>, missing
+                    <code>prior</code>, or <code>prior &gt; 1</code> are
+                    skipped.
+                  </li>
+                  <li>
+                    Booked jobs (<code>prior = 5</code>) are not in this table
+                    and are never touched.
+                  </li>
+                  <li>
+                    Errors do not stop the loop — they appear in the cycle
+                    history below.
+                  </li>
                 </ol>
-                <p>This is equivalent to clicking <em>Sync All Supported</em> once per interval.</p>
+                <p>
+                  This is equivalent to clicking
+                  <em>Sync All Supported</em> once per interval.
+                </p>
               </div>
             </details>
             <div class="btn-row">
-              <label>Run every
+              <label
+                >Run every
                 <span class="interval-picker">
-                  <input id="form-leads-interval-value" type="number" min="1" value="30" />
+                  <input
+                    id="form-leads-interval-value"
+                    type="number"
+                    min="1"
+                    value="30"
+                  />
                   <select id="form-leads-interval-unit">
                     <option value="seconds" selected>Seconds</option>
                     <option value="minutes">Minutes</option>
@@ -1011,7 +1100,8 @@
                   </select>
                 </span>
               </label>
-              <label>Progress filter
+              <label
+                >Progress filter
                 <select id="form-leads-filter">
                   <option value="all">Show All</option>
                   <option value="syncable">Show Syncable</option>
@@ -1020,15 +1110,27 @@
               </label>
             </div>
             <div class="btn-row">
-              <button id="form-leads-auto-start" type="button">▶ Start ScanAndSync</button>
-              <button id="form-leads-auto-stop" class="btn-danger" type="button" disabled>
+              <button id="form-leads-auto-start" type="button">
+                ▶ Start ScanAndSync
+              </button>
+              <button
+                id="form-leads-auto-stop"
+                class="btn-danger"
+                type="button"
+                disabled
+              >
                 ■ Stop
               </button>
             </div>
           </div>
 
-          <div id="form-leads-paused-banner" class="banner warn" style="display:none">
-            ⚠ Manual selection is paused while ScanAndSync is running. Stop the loop above to scan and sync rows by hand again.
+          <div
+            id="form-leads-paused-banner"
+            class="banner warn"
+            style="display: none"
+          >
+            ⚠ Manual selection is paused while ScanAndSync is running. Stop the
+            loop above to scan and sync rows by hand again.
           </div>
 
           <div id="form-leads-summary" class="summary" hidden></div>
@@ -1036,26 +1138,31 @@
           <div id="form-leads-log-tables-container"></div>
 
           <div id="form-leads-rows-container">
-            <div class="card" id="form-leads-rowlist-card" style="display:none">
-              <h3 class="card__title">
-                Syncable Table Scan
-                <span class="card__title-meta">selectable rows</span>
-              </h3>
+            <div
+              id="form-leads-rowlist-card"
+              class="table-preview-wrapper"
+              style="display: none"
+            >
               <div id="form-leads-rows" class="row-list"></div>
             </div>
             <div id="form-leads-empty" class="empty-state">
               <strong>No scan yet</strong>
-              Click <em>Scan Follow Up Table</em> to read rows from the active Granot tab.
+              Click <em>Scan Follow Up Table</em> to read rows from the active
+              Granot tab.
             </div>
           </div>
 
           <div class="card">
             <h3 class="card__title">
               ScanAndSync History
-              <span id="form-leads-history-meta" class="card__title-meta">0 cycle(s)</span>
+              <span id="form-leads-history-meta" class="card__title-meta"
+                >0 cycle(s)</span
+              >
             </h3>
             <div id="form-leads-history">
-              <p class="status-text" style="margin:0">No ScanAndSync cycles yet.</p>
+              <p class="status-text" style="margin: 0">
+                No ScanAndSync cycles yet.
+              </p>
             </div>
           </div>
         </section>
@@ -1080,8 +1187,12 @@
           <div class="card">
             <h3 class="card__title">Actions</h3>
             <div class="btn-row">
-              <button id="current-lead-scan" type="button">Re-scan Current Page</button>
-              <button id="current-lead-sync" type="button" disabled>Sync Current Lead</button>
+              <button id="current-lead-scan" type="button">
+                Re-scan Current Page
+              </button>
+              <button id="current-lead-sync" type="button" disabled>
+                Sync Current Lead
+              </button>
             </div>
           </div>
 
@@ -1118,8 +1229,15 @@
           <div class="card">
             <h3 class="card__title">Actions</h3>
             <div class="btn-row">
-              <button id="call-leads-scan" type="button">Scan Call Leads View</button>
-              <button id="call-leads-sync-booked" class="btn-secondary" type="button" disabled>
+              <button id="call-leads-scan" type="button">
+                Scan Call Leads View
+              </button>
+              <button
+                id="call-leads-sync-booked"
+                class="btn-secondary"
+                type="button"
+                disabled
+              >
                 Update Booked Call Leads
               </button>
               <button id="call-leads-log" class="btn-secondary" type="button">
@@ -1133,10 +1251,20 @@
               <button id="call-leads-sync-all" type="button" disabled>
                 Sync All Supported
               </button>
-              <button id="call-leads-select-all" class="btn-secondary" type="button" disabled>
+              <button
+                id="call-leads-select-all"
+                class="btn-secondary"
+                type="button"
+                disabled
+              >
                 Select All
               </button>
-              <button id="call-leads-deselect-all" class="btn-secondary" type="button" disabled>
+              <button
+                id="call-leads-deselect-all"
+                class="btn-secondary"
+                type="button"
+                disabled
+              >
                 Deselect All
               </button>
             </div>
@@ -1152,24 +1280,52 @@
               <div class="explainer__body">
                 <p>Every <strong>interval</strong>, the loop will:</p>
                 <ol>
-                  <li>Re-scan the Granot <em>Call Leads</em> page (both <em>Follow Up Estimates</em> and <em>Booked Jobs</em> tables).</li>
-                  <li>For each row in <em>Follow Up Estimates</em>:
+                  <li>
+                    Re-scan the Granot <em>Call Leads</em> page (both
+                    <em>Follow Up Estimates</em> and
+                    <em>Booked Jobs</em> tables).
+                  </li>
+                  <li>
+                    For each row in <em>Follow Up Estimates</em>:
                     <ul>
-                      <li>Send its phone, <code>job_no</code>, customer, zips, and <code>est_cf</code> to Vantage.</li>
+                      <li>
+                        Send its phone, <code>job_no</code>, customer, zips, and
+                        <code>est_cf</code> to Vantage.
+                      </li>
                       <li>Vantage looks up a Call Lead by phone number.</li>
-                      <li>If found and the fields differ, Vantage updates the Call Lead.</li>
+                      <li>
+                        If found and the fields differ, Vantage updates the Call
+                        Lead.
+                      </li>
                     </ul>
                   </li>
-                  <li>Rows in <em>Booked Jobs</em> (<code>prior = 5</code>) are previewed separately and can be reconciled with the <em>Update Booked Call Leads</em> button.</li>
-                  <li>Rows in <em>Follow Up Estimates</em> with no matching Call Lead are reported as <code>no_match</code> and skipped — try again later once the CSR creates one.</li>
-                  <li>Errors do not stop the loop — they appear in the cycle history below.</li>
+                  <li>
+                    Rows in <em>Booked Jobs</em> (<code>prior = 5</code>) are
+                    previewed separately and can be reconciled with the
+                    <em>Update Booked Call Leads</em> button.
+                  </li>
+                  <li>
+                    Rows in <em>Follow Up Estimates</em> with no matching Call
+                    Lead are reported as <code>no_match</code> and skipped — try
+                    again later once the CSR creates one.
+                  </li>
+                  <li>
+                    Errors do not stop the loop — they appear in the cycle
+                    history below.
+                  </li>
                 </ol>
               </div>
             </details>
             <div class="btn-row">
-              <label>Run every
+              <label
+                >Run every
                 <span class="interval-picker">
-                  <input id="call-leads-interval-value" type="number" min="1" value="1" />
+                  <input
+                    id="call-leads-interval-value"
+                    type="number"
+                    min="1"
+                    value="1"
+                  />
                   <select id="call-leads-interval-unit">
                     <option value="seconds">Seconds</option>
                     <option value="minutes" selected>Minutes</option>
@@ -1177,7 +1333,8 @@
                   </select>
                 </span>
               </label>
-              <label>Progress filter
+              <label
+                >Progress filter
                 <select id="call-leads-filter">
                   <option value="all">Show All</option>
                   <option value="syncable">Show Syncable</option>
@@ -1186,15 +1343,27 @@
               </label>
             </div>
             <div class="btn-row">
-              <button id="call-leads-auto-start" type="button">▶ Start ScanAndSync</button>
-              <button id="call-leads-auto-stop" class="btn-danger" type="button" disabled>
+              <button id="call-leads-auto-start" type="button">
+                ▶ Start ScanAndSync
+              </button>
+              <button
+                id="call-leads-auto-stop"
+                class="btn-danger"
+                type="button"
+                disabled
+              >
                 ■ Stop
               </button>
             </div>
           </div>
 
-          <div id="call-leads-paused-banner" class="banner warn" style="display:none">
-            ⚠ Manual selection is paused while ScanAndSync is running. Stop the loop above to scan and sync rows by hand again.
+          <div
+            id="call-leads-paused-banner"
+            class="banner warn"
+            style="display: none"
+          >
+            ⚠ Manual selection is paused while ScanAndSync is running. Stop the
+            loop above to scan and sync rows by hand again.
           </div>
 
           <div id="call-leads-summary" class="summary" hidden></div>
@@ -1202,37 +1371,38 @@
           <div id="call-leads-log-tables-container"></div>
 
           <div id="call-leads-rows-container">
-            <div class="card" id="call-leads-rowlist-card" style="display:none">
-              <h3 class="card__title">
-                Follow Up Estimates
-                <span class="card__title-meta">updateable rows</span>
-              </h3>
+            <div
+              id="call-leads-rowlist-card"
+              class="table-preview-wrapper"
+              style="display: none"
+            >
               <div id="call-leads-rows" class="row-list"></div>
             </div>
             <div id="call-leads-booked-container"></div>
             <div id="call-leads-empty" class="empty-state">
               <strong>No scan yet</strong>
-              Click <em>Scan Call Leads View</em> to read rows from the active Granot tab.
+              Click <em>Scan Call Leads View</em> to read rows from the active
+              Granot tab.
             </div>
           </div>
 
           <div class="card">
             <h3 class="card__title">
               ScanAndSync History
-              <span id="call-leads-history-meta" class="card__title-meta">0 cycle(s)</span>
+              <span id="call-leads-history-meta" class="card__title-meta"
+                >0 cycle(s)</span
+              >
             </h3>
             <div id="call-leads-history">
-              <p class="status-text" style="margin:0">No ScanAndSync cycles yet.</p>
+              <p class="status-text" style="margin: 0">
+                No ScanAndSync cycles yet.
+              </p>
             </div>
           </div>
         </section>
 
         <!-- WORKSPACE: Diagnose -->
-        <section
-          id="ws-diagnose"
-          class="workspace"
-          data-workspace="diagnose"
-        >
+        <section id="ws-diagnose" class="workspace" data-workspace="diagnose">
           <div class="workspace__header">
             <div>
               <h2>Diagnose Page</h2>
@@ -1253,35 +1423,41 @@
         </section>
 
         <!-- WORKSPACE: Debug -->
-        <section
-          id="ws-debug"
-          class="workspace"
-          data-workspace="debug"
-        >
+        <section id="ws-debug" class="workspace" data-workspace="debug">
           <div class="workspace__header">
             <div>
               <h2>Debug: Log Raw Tables</h2>
               <p>
                 Dumps every raw <code>&lt;table&gt;</code> on the active Granot
-                tab to the browser console (filter for <code>[Granot Sync]</code>).
-                This is the low-level developer dump — use the
-                <em>Log Tables</em> button inside Form Leads / Call Leads for
-                the user-friendly version.
+                tab to the browser console (filter for
+                <code>[Granot Sync]</code>). This is the low-level developer
+                dump — use the <em>Log Tables</em> button inside Form Leads /
+                Call Leads for the user-friendly version.
               </p>
             </div>
           </div>
           <div class="card">
             <div class="btn-row">
-              <button id="debug-dump" type="button">Dump All Tables to Console</button>
+              <button id="debug-dump" type="button">
+                Dump All Tables to Console
+              </button>
             </div>
-            <p id="debug-result" class="status-text" style="margin-top:8px"></p>
+            <p
+              id="debug-result"
+              class="status-text"
+              style="margin-top: 8px"
+            ></p>
           </div>
         </section>
       </main>
 
       <!-- ===== STATUS BAR ===== -->
       <footer class="app__bar">
-        <div id="status-spinner" class="status-spinner" aria-hidden="true"></div>
+        <div
+          id="status-spinner"
+          class="status-spinner"
+          aria-hidden="true"
+        ></div>
         <div id="status" class="status-text" aria-live="polite"></div>
       </footer>
     </div>
