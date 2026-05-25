@@ -1102,7 +1102,8 @@
                 phone matches a <em>Follow Up Estimates</em> row, sync
                 <code>job_no</code>, <code>cubic_feet</code>, pickup &amp;
                 delivery zips, and customer info from Granot onto the Call Lead
-                in Vantage. Booked Jobs (<code>prior = 5</code>) are skipped.
+                in Vantage. Booked Jobs (<code>prior = 5</code>) can now
+                reconcile booking-first Call Leads by <code>job_no</code>.
               </p>
             </div>
             <span
@@ -1118,6 +1119,9 @@
             <h3 class="card__title">Actions</h3>
             <div class="btn-row">
               <button id="call-leads-scan" type="button">Scan Call Leads View</button>
+              <button id="call-leads-sync-booked" class="btn-secondary" type="button" disabled>
+                Update Booked Call Leads
+              </button>
               <button id="call-leads-log" class="btn-secondary" type="button">
                 📋 Log Tables
               </button>
@@ -1156,7 +1160,7 @@
                       <li>If found and the fields differ, Vantage updates the Call Lead.</li>
                     </ul>
                   </li>
-                  <li>Rows in <em>Booked Jobs</em> (<code>prior = 5</code>) are <strong>never</strong> touched.</li>
+                  <li>Rows in <em>Booked Jobs</em> (<code>prior = 5</code>) are previewed separately and can be reconciled with the <em>Update Booked Call Leads</em> button.</li>
                   <li>Rows in <em>Follow Up Estimates</em> with no matching Call Lead are reported as <code>no_match</code> and skipped — try again later once the CSR creates one.</li>
                   <li>Errors do not stop the loop — they appear in the cycle history below.</li>
                 </ol>

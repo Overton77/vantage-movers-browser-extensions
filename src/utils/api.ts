@@ -54,6 +54,22 @@ export type CallLeadEnrichmentRowPayload = {
   est_cf?: string;
 };
 
+export type BookedCallLeadReconciliationRowPayload = {
+  row_id: string;
+  row_index?: number;
+  section?: 'bookedJobs' | 'followUpEstimates';
+  job_no?: string;
+  source?: string;
+  prior?: string;
+  book_date?: string;
+  customer?: string;
+  phone?: string;
+  email?: string;
+  from_zip?: string;
+  to_zip?: string;
+  est_cf?: string;
+};
+
 export type CallLeadEnrichmentResult = {
   row_id: string;
   status:
@@ -68,6 +84,25 @@ export type CallLeadEnrichmentResult = {
   call_lead_id?: string;
   matched_phone_number?: string;
   job_no?: string;
+  changes: string[];
+  warnings: string[];
+  parsed?: Record<string, unknown>;
+};
+
+export type BookedCallLeadReconciliationResult = {
+  row_id: string;
+  status:
+    | 'updateable'
+    | 'updated'
+    | 'unchanged'
+    | 'booking_missing'
+    | 'invalid'
+    | 'conflict'
+    | 'failed';
+  message: string;
+  job_no?: string;
+  booking_id?: string;
+  call_lead_id?: string;
   changes: string[];
   warnings: string[];
   parsed?: Record<string, unknown>;
@@ -128,6 +163,34 @@ export async function syncCallLeadEnrichment(
 ): Promise<CallLeadEnrichmentResult[]> {
   const envelope = await vantageFetch<CallLeadEnrichmentResult[]>(
     `/api/v1/call-leads/enrichment/sync`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
+    },
+  );
+
+  return envelope.data;
+}
+
+export async function previewBookedCallLeadReconciliation(
+  rows: BookedCallLeadReconciliationRowPayload[],
+): Promise<BookedCallLeadReconciliationResult[]> {
+  const envelope = await vantageFetch<BookedCallLeadReconciliationResult[]>(
+    `/api/v1/call-leads/booked-reconciliation/preview`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
+    },
+  );
+
+  return envelope.data;
+}
+
+export async function syncBookedCallLeadReconciliation(
+  rows: BookedCallLeadReconciliationRowPayload[],
+): Promise<BookedCallLeadReconciliationResult[]> {
+  const envelope = await vantageFetch<BookedCallLeadReconciliationResult[]>(
+    `/api/v1/call-leads/booked-reconciliation/sync`,
     {
       method: 'POST',
       body: JSON.stringify({ rows }),

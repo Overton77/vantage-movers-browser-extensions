@@ -3,9 +3,13 @@
 import { GRANOT_URL_PATTERNS } from "../../config";
 import {
   getFormLeadById,
+  previewBookedCallLeadReconciliation,
   previewCallLeadEnrichment,
+  syncBookedCallLeadReconciliation,
   syncCallLeadEnrichment,
   updateFormLead,
+  type BookedCallLeadReconciliationResult,
+  type BookedCallLeadReconciliationRowPayload,
   type CallLeadEnrichmentResult,
   type CallLeadEnrichmentRowPayload,
   type FormLeadUpdatePayload,
@@ -112,6 +116,11 @@ type CallLeadEnrichmentPreview = {
   result?: CallLeadEnrichmentResult;
 };
 
+type BookedCallLeadReconciliationPreview = {
+  payload: BookedCallLeadReconciliationRowPayload;
+  result?: BookedCallLeadReconciliationResult;
+};
+
 type LeadSyncCandidate = {
   id: string;
   refNo: string;
@@ -175,6 +184,7 @@ type FormLeadsState = {
 type CallLeadsState = {
   preview?: CallLeadPreviewResponse;
   enrichmentRows: CallLeadEnrichmentPreview[];
+  bookedReconciliationRows: BookedCallLeadReconciliationPreview[];
   selectedRowIds: Set<string>;
   cycles: CycleEntry[];
   progressFilter: ProgressFilter;
@@ -322,6 +332,7 @@ const dom = {
   cl: {
     scan: el<HTMLButtonElement>("call-leads-scan"),
     log: el<HTMLButtonElement>("call-leads-log"),
+    syncBooked: el<HTMLButtonElement>("call-leads-sync-booked"),
     syncSelected: el<HTMLButtonElement>("call-leads-sync-selected"),
     syncAll: el<HTMLButtonElement>("call-leads-sync-all"),
     selectAll: el<HTMLButtonElement>("call-leads-select-all"),
@@ -399,6 +410,7 @@ const state: AppState = {
   },
   callLeads: {
     enrichmentRows: [],
+    bookedReconciliationRows: [],
     selectedRowIds: new Set(),
     cycles: [],
     progressFilter: "all",
@@ -609,6 +621,13 @@ function attachEventHandlers() {
   });
   dom.cl.log.addEventListener("click", () => {
     void openCallLeadsLogTables();
+  });
+  dom.cl.syncBooked.addEventListener("click", () => {
+    void syncBookedCallRows(
+      state.callLeads.bookedReconciliationRows
+        .filter(canSyncBookedCallReconciliationRow)
+        .map((row) => row.payload),
+    );
   });
   dom.cl.syncSelected.addEventListener("click", () => {
     void syncCallRows(
@@ -1050,12 +1069,15 @@ function renderCallLeadsSummary() {
   const followUpCount = followUp?.rows.length ?? 0;
   const bookedCount = booked?.rows.length ?? 0;
   const updateable = cl.enrichmentRows.filter(canSyncCallEnrichmentRow).length;
+  const bookedUpdateable = cl.bookedReconciliationRows.filter(
+    canSyncBookedCallReconciliationRow,
+  ).length;
   const selected = cl.enrichmentRows.filter((row) =>
     cl.selectedRowIds.has(row.payload.row_id),
   ).length;
 
   dom.cl.summary.hidden = false;
-  dom.cl.summary.textContent = `${foundSections.length} table(s) found · ${followUpCount} follow-up row(s) · ${updateable} updateable · ${bookedCount} booked (skipped) · ${selected} selected.`;
+  dom.cl.summary.textContent = `${foundSections.length} table(s) found · ${followUpCount} follow-up row(s) · ${updateable} updateable · ${bookedCount} booked row(s) · ${bookedUpdateable} booked updateable · ${selected} selected.`;
 }
 
 function renderCallLeadsRows() {
@@ -1154,7 +1176,10 @@ function renderCallLeadsBookedAccordion() {
   });
 
   const summary = document.createElement("summary");
-  summary.textContent = `Booked Jobs · ${booked.rows.length} job(s) — skipped by ScanAndSync (prior = 5)`;
+  const bookedUpdateable = cl.bookedReconciliationRows.filter(
+    canSyncBookedCallReconciliationRow,
+  ).length;
+  summary.textContent = `Booked Jobs · ${booked.rows.length} job(s) · ${bookedUpdateable} updateable by job_no`;
   details.append(summary);
 
   const body = document.createElement("div");
@@ -1163,8 +1188,12 @@ function renderCallLeadsBookedAccordion() {
   body.style.gap = "6px";
 
   for (const row of booked.rows) {
+    const reconciliation = cl.bookedReconciliationRows.find(
+      (preview) => preview.payload.row_id === row.id,
+    );
+    const result = reconciliation?.result;
     const rowEl = document.createElement("div");
-    rowEl.className = "row unsyncable";
+    rowEl.className = `row ${canSyncBookedCallReconciliationRow(reconciliation) ? "" : "unsyncable"}`;
 
     const headerEl = document.createElement("div");
     headerEl.className = "row-header";
@@ -1178,10 +1207,29 @@ function renderCallLeadsBookedAccordion() {
     headerEl.append(titleEl);
 
     const badge = document.createElement("span");
-    badge.className = "badge muted";
-    badge.textContent = "booked · read-only";
-    headerEl.append(badge);
+    if (result) {
+      headerEl.append(callLeadResultBadge(result.status));
+    } else {
+      badge.className = "badge muted";
+      badge.textContent = "booked";
+      headerEl.append(badge);
+    }
     rowEl.append(headerEl);
+
+    if (result) {
+      const metaEl = document.createElement("div");
+      metaEl.className = "row-meta";
+      metaEl.textContent = [
+        result.message,
+        result.booking_id ? `booking: ${result.booking_id}` : undefined,
+        result.call_lead_id ? `call lead: ${result.call_lead_id}` : undefined,
+        result.changes.length ? `changes: ${result.changes.join(", ")}` : undefined,
+        ...result.warnings,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+      rowEl.append(metaEl);
+    }
 
     const fieldGrid = document.createElement("div");
     fieldGrid.className = "field-grid";
@@ -1307,12 +1355,16 @@ function renderCallLeadsControls() {
   const autoRunning = cl.autoRunning;
   const hasRows = cl.enrichmentRows.length > 0;
   const hasSyncableRows = cl.enrichmentRows.some(canSyncCallEnrichmentRow);
+  const hasSyncableBookedRows = cl.bookedReconciliationRows.some(
+    canSyncBookedCallReconciliationRow,
+  );
   const hasSelectedRows = cl.enrichmentRows.some((row) =>
     cl.selectedRowIds.has(row.payload.row_id),
   );
 
   dom.cl.scan.disabled = isBusy || autoRunning;
   dom.cl.log.disabled = isBusy;
+  dom.cl.syncBooked.disabled = isBusy || autoRunning || !hasSyncableBookedRows;
   dom.cl.syncSelected.disabled = isBusy || autoRunning || !hasSelectedRows;
   dom.cl.syncAll.disabled = isBusy || autoRunning || !hasSyncableRows;
   dom.cl.selectAll.disabled = isBusy || autoRunning || !hasSyncableRows;
@@ -1381,24 +1433,29 @@ function renderCallLeadsLogTables() {
     };
   });
 
-  const bookedRows = (booked?.rows ?? []).map((row) => ({
-    table: "booked_jobs",
-    "#": row.values.no || row.rowIndex,
-    job_no: row.values.job_no || "",
-    customer: row.values.customer || "",
-    phone: row.values.phone || "",
-    email: row.values.email || "",
-    from_zip: row.values.from_zip || "",
-    to_zip: row.values.to_zip || "",
-    est_cf: row.values.est_cf || "",
-    enrichment_status: "skipped (prior 5)",
-    enrichment_message: "",
-  }));
+  const bookedRows = (booked?.rows ?? []).map((row) => {
+    const reconciliation = cl.bookedReconciliationRows.find(
+      (preview) => preview.payload.row_id === row.id,
+    );
+    return {
+      table: "booked_jobs",
+      "#": row.values.no || row.rowIndex,
+      job_no: row.values.job_no || "",
+      customer: row.values.customer || "",
+      phone: row.values.phone || "",
+      email: row.values.email || "",
+      from_zip: row.values.from_zip || "",
+      to_zip: row.values.to_zip || "",
+      est_cf: row.values.est_cf || "",
+      reconciliation_status: reconciliation?.result?.status ?? "—",
+      reconciliation_message: reconciliation?.result?.message ?? "",
+    };
+  });
 
   console.groupCollapsed("[Granot Sync] Call Leads — Follow Up Estimates");
   console.table(followUpRows);
   console.groupEnd();
-  console.groupCollapsed("[Granot Sync] Call Leads — Booked Jobs (read-only)");
+  console.groupCollapsed("[Granot Sync] Call Leads — Booked Jobs");
   console.table(bookedRows);
   console.groupEnd();
 
@@ -1450,7 +1507,7 @@ function renderCallLeadsLogTables() {
     heading.style.textTransform = "uppercase";
     heading.style.color = "#475569";
     heading.style.letterSpacing = "0.04em";
-    heading.textContent = "Booked Jobs (skipped)";
+    heading.textContent = "Booked Jobs";
     body.append(heading);
     body.append(buildLogGrid(bookedRows, () => false));
   }
@@ -1820,16 +1877,14 @@ function resultBadge(result: RowSyncResult): HTMLSpanElement {
   return badge;
 }
 
-function callLeadResultBadge(
-  status: CallLeadEnrichmentResult["status"],
-): HTMLSpanElement {
+function callLeadResultBadge(status: string): HTMLSpanElement {
   const badge = document.createElement("span");
   badge.className =
     status === "updateable" || status === "updated"
       ? "badge ok"
       : status === "failed" || status === "conflict" || status === "invalid"
         ? "badge error"
-        : status === "no_match"
+        : status === "no_match" || status === "booking_missing"
           ? "badge warn"
           : "badge muted";
   badge.textContent = status;
@@ -1969,7 +2024,11 @@ async function scanCallLeadsPreview(options: {
     state.callLeads.preview = response;
     state.callLeads.hasScanned = true;
     const enrichmentPayloads = callLeadRowsToEnrichmentPayloads(response);
+    const bookedPayloads = callLeadRowsToBookedReconciliationPayloads(response);
     state.callLeads.enrichmentRows = enrichmentPayloads.map((payload) => ({
+      payload,
+    }));
+    state.callLeads.bookedReconciliationRows = bookedPayloads.map((payload) => ({
       payload,
     }));
 
@@ -1991,6 +2050,28 @@ async function scanCallLeadsPreview(options: {
       } catch (err) {
         setStatus(
           `Could not preview call lead enrichment: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+          { tone: "error" },
+        );
+      }
+    }
+
+    if (bookedPayloads.length > 0) {
+      try {
+        const previewResults =
+          await previewBookedCallLeadReconciliation(bookedPayloads);
+        state.callLeads.bookedReconciliationRows = bookedPayloads.map(
+          (payload) => ({
+            payload,
+            result: previewResults.find(
+              (result) => result.row_id === payload.row_id,
+            ),
+          }),
+        );
+      } catch (err) {
+        setStatus(
+          `Could not preview booked call lead reconciliation: ${
             err instanceof Error ? err.message : String(err)
           }`,
           { tone: "error" },
@@ -2024,14 +2105,18 @@ async function scanCallLeadsPreview(options: {
       const updateable = state.callLeads.enrichmentRows.filter(
         canSyncCallEnrichmentRow,
       ).length;
+      const bookedUpdateable = state.callLeads.bookedReconciliationRows.filter(
+        canSyncBookedCallReconciliationRow,
+      ).length;
       setStatus(
-        `Preview ready: found ${totalRows} call lead row(s), ${updateable} updateable Follow Up row(s).`,
+        `Preview ready: found ${totalRows} call lead row(s), ${updateable} updateable Follow Up row(s), ${bookedUpdateable} updateable Booked Jobs row(s).`,
       );
     }
     return true;
   } catch (err) {
     state.callLeads.preview = undefined;
     state.callLeads.enrichmentRows = [];
+    state.callLeads.bookedReconciliationRows = [];
     state.callLeads.selectedRowIds = new Set();
     renderCallLeads();
     setStatus(
@@ -2187,6 +2272,52 @@ async function syncCallRows(
   } catch (err) {
     setStatus(
       `Call sync failed: ${err instanceof Error ? err.message : String(err)}`,
+      { tone: "error" },
+    );
+    return undefined;
+  } finally {
+    setBusy(false);
+    renderCallLeads();
+  }
+}
+
+async function syncBookedCallRows(
+  rows: BookedCallLeadReconciliationRowPayload[],
+): Promise<SyncCounts | undefined> {
+  if (rows.length === 0) {
+    setStatus("No updateable booked call lead rows found.", { tone: "error" });
+    return undefined;
+  }
+
+  setBusy(true);
+  setStatus(`Updating ${rows.length} booked call lead row(s)…`);
+
+  try {
+    const results = await syncBookedCallLeadReconciliation(rows);
+    state.callLeads.bookedReconciliationRows =
+      state.callLeads.bookedReconciliationRows.map((preview) => ({
+        ...preview,
+        result:
+          results.find((result) => result.row_id === preview.payload.row_id) ??
+          preview.result,
+      }));
+
+    const updated = results.filter((result) => result.status === "updated").length;
+    const unchanged = results.filter((result) => result.status === "unchanged").length;
+    const failed = results.filter(
+      (result) =>
+        result.status === "failed" ||
+        result.status === "conflict" ||
+        result.status === "booking_missing" ||
+        result.status === "invalid",
+    ).length;
+    setStatus(
+      `Booked call sync complete. Updated ${updated}, unchanged ${unchanged}, failed/missing ${failed}.`,
+    );
+    return { updated, unchanged, failed };
+  } catch (err) {
+    setStatus(
+      `Booked call sync failed: ${err instanceof Error ? err.message : String(err)}`,
       { tone: "error" },
     );
     return undefined;
@@ -2612,6 +2743,12 @@ function canSyncCallEnrichmentRow(row?: CallLeadEnrichmentPreview): boolean {
   return row?.result?.status === "updateable";
 }
 
+function canSyncBookedCallReconciliationRow(
+  row?: BookedCallLeadReconciliationPreview,
+): boolean {
+  return row?.result?.status === "updateable";
+}
+
 function callLeadRowsToEnrichmentPayloads(
   preview: CallLeadPreviewResponse,
 ): CallLeadEnrichmentRowPayload[] {
@@ -2625,6 +2762,30 @@ function callLeadRowsToEnrichmentPayloads(
     row_id: row.id,
     row_index: row.rowIndex,
     job_no: getPreviewValue(row, "job_no"),
+    customer: getPreviewValue(row, "customer"),
+    phone: getPreviewValue(row, "phone"),
+    email: getPreviewValue(row, "email"),
+    from_zip: getPreviewValue(row, "from_zip"),
+    to_zip: getPreviewValue(row, "to_zip"),
+    est_cf: getPreviewValue(row, "est_cf"),
+  }));
+}
+
+function callLeadRowsToBookedReconciliationPayloads(
+  preview: CallLeadPreviewResponse,
+): BookedCallLeadReconciliationRowPayload[] {
+  const booked = preview.sections.find((section) => section.key === "bookedJobs");
+  if (!booked) {
+    return [];
+  }
+  return booked.rows.map((row) => ({
+    row_id: row.id,
+    row_index: row.rowIndex,
+    section: "bookedJobs",
+    job_no: getPreviewValue(row, "job_no"),
+    source: getPreviewValue(row, "source"),
+    prior: getPreviewValue(row, "prior"),
+    book_date: getPreviewValue(row, "book_date"),
     customer: getPreviewValue(row, "customer"),
     phone: getPreviewValue(row, "phone"),
     email: getPreviewValue(row, "email"),
