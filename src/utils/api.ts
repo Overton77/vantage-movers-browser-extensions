@@ -1,8 +1,8 @@
-import { VANTAGE_API_BASE, VANTAGE_API_SECRET } from '../config';
-import { error, log, warn } from './logger';
+import { VANTAGE_API_BASE, VANTAGE_API_SECRET } from "../config";
+import { error, log, warn } from "./logger";
 
 export type PingPayload = {
-  source: 'granot-sync-extension';
+  source: "granot-sync-extension";
   pageUrl: string;
   timestamp: string;
   /** Placeholder — replace with real Granot fields as you discover them */
@@ -16,21 +16,21 @@ export type PingPayload = {
 export async function pingServer(payload: PingPayload): Promise<void> {
   const url = `${VANTAGE_API_BASE}/health`;
 
-  log('Pinging server:', url, payload);
+  log("Pinging server:", url, payload);
 
   try {
     const response = await fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+      method: "GET",
+      headers: { Accept: "application/json" },
     });
 
-    log('Server response:', response.status, response.statusText);
+    log("Server response:", response.status, response.statusText);
 
     if (!response.ok) {
-      warn('Non-OK response from server');
+      warn("Non-OK response from server");
     }
   } catch (err) {
-    error('Failed to reach server:', err);
+    error("Failed to reach server:", err);
     throw err;
   }
 }
@@ -40,6 +40,12 @@ export type FormLeadLookup = {
   ref_no?: string;
   quoted?: boolean;
   cubic_feet?: number;
+  /**
+   * Mongo ObjectId of an attached BookedLead, when the form lead has one.
+   * Present when the form lead has been booked. The popup uses this to
+   * show "This form lead has a booking attached".
+   */
+  booked?: string | null;
 };
 
 export type CallLeadEnrichmentRowPayload = {
@@ -57,7 +63,7 @@ export type CallLeadEnrichmentRowPayload = {
 export type BookedCallLeadReconciliationRowPayload = {
   row_id: string;
   row_index?: number;
-  section?: 'bookedJobs' | 'followUpEstimates';
+  section?: "bookedJobs" | "followUpEstimates";
   job_no?: string;
   source?: string;
   prior?: string;
@@ -70,39 +76,60 @@ export type BookedCallLeadReconciliationRowPayload = {
   est_cf?: string;
 };
 
+export type CallLeadMatchMethod =
+  | "phone_and_job_no"
+  | "phone_only"
+  | "job_no_only"
+  | "none";
+
 export type CallLeadEnrichmentResult = {
   row_id: string;
   status:
-    | 'updateable'
-    | 'updated'
-    | 'unchanged'
-    | 'conflict'
-    | 'no_match'
-    | 'invalid'
-    | 'failed';
+    | "updateable"
+    | "updated"
+    | "unchanged"
+    | "conflict"
+    | "no_match"
+    | "invalid"
+    | "failed";
   message: string;
   call_lead_id?: string;
   matched_phone_number?: string;
   job_no?: string;
+  /** How the call lead was located in Vantage. */
+  match_method?: CallLeadMatchMethod;
+  /** Whether the matched call lead has a Vantage booking attached. */
+  has_booking?: boolean;
   changes: string[];
   warnings: string[];
   parsed?: Record<string, unknown>;
 };
 
+export type BookedCallLeadMatchMethod =
+  | "job_no_with_booking"
+  | "job_no_only"
+  | "phone_only"
+  | "none";
+
 export type BookedCallLeadReconciliationResult = {
   row_id: string;
   status:
-    | 'updateable'
-    | 'updated'
-    | 'unchanged'
-    | 'booking_missing'
-    | 'invalid'
-    | 'conflict'
-    | 'failed';
+    | "updateable"
+    | "updated"
+    | "unchanged"
+    | "booking_missing"
+    | "no_match"
+    | "invalid"
+    | "conflict"
+    | "failed";
   message: string;
   job_no?: string;
   booking_id?: string;
   call_lead_id?: string;
+  /** How we found the Vantage booking / call lead for this Booked Jobs row. */
+  match_method?: BookedCallLeadMatchMethod;
+  /** Whether the matched call lead has a Vantage booking attached. */
+  has_booking?: boolean;
   changes: string[];
   warnings: string[];
   parsed?: Record<string, unknown>;
@@ -120,9 +147,12 @@ type ApiEnvelope<T> =
     };
 
 export async function getFormLeadById(id: string): Promise<FormLeadLookup> {
-  const envelope = await vantageFetch<FormLeadLookup>(`/api/v1/form-leads/${id}`, {
-    method: 'GET',
-  });
+  const envelope = await vantageFetch<FormLeadLookup>(
+    `/api/v1/form-leads/${id}`,
+    {
+      method: "GET",
+    },
+  );
 
   return envelope.data;
 }
@@ -136,10 +166,13 @@ export async function updateFormLead(
   id: string,
   payload: FormLeadUpdatePayload,
 ): Promise<FormLeadLookup> {
-  const envelope = await vantageFetch<FormLeadLookup>(`/api/v1/form-leads/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+  const envelope = await vantageFetch<FormLeadLookup>(
+    `/api/v1/form-leads/${id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
 
   return envelope.data;
 }
@@ -150,7 +183,7 @@ export async function previewCallLeadEnrichment(
   const envelope = await vantageFetch<CallLeadEnrichmentResult[]>(
     `/api/v1/call-leads/enrichment/preview`,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ rows }),
     },
   );
@@ -164,7 +197,7 @@ export async function syncCallLeadEnrichment(
   const envelope = await vantageFetch<CallLeadEnrichmentResult[]>(
     `/api/v1/call-leads/enrichment/sync`,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ rows }),
     },
   );
@@ -178,7 +211,7 @@ export async function previewBookedCallLeadReconciliation(
   const envelope = await vantageFetch<BookedCallLeadReconciliationResult[]>(
     `/api/v1/call-leads/booked-reconciliation/preview`,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ rows }),
     },
   );
@@ -192,7 +225,7 @@ export async function syncBookedCallLeadReconciliation(
   const envelope = await vantageFetch<BookedCallLeadReconciliationResult[]>(
     `/api/v1/call-leads/booked-reconciliation/sync`,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ rows }),
     },
   );
@@ -205,16 +238,18 @@ async function vantageFetch<T>(
   init: RequestInit,
 ): Promise<Extract<ApiEnvelope<T>, { ok: true }>> {
   if (!VANTAGE_API_SECRET) {
-    throw new Error('Missing VITE_VANTAGE_API_SECRET for Vantage /api/v1 request');
+    throw new Error(
+      "Missing VITE_VANTAGE_API_SECRET for Vantage /api/v1 request",
+    );
   }
 
   const url = `${VANTAGE_API_BASE}${path}`;
   const response = await fetch(url, {
     ...init,
     headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'x-api-secret': VANTAGE_API_SECRET,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "x-api-secret": VANTAGE_API_SECRET,
       ...init.headers,
     },
   });
@@ -225,7 +260,8 @@ async function vantageFetch<T>(
   }))) as ApiEnvelope<T>;
 
   if (!response.ok || !envelope.ok) {
-    const message = !envelope.ok && envelope.error ? envelope.error : response.statusText;
+    const message =
+      !envelope.ok && envelope.error ? envelope.error : response.statusText;
     throw new Error(`Vantage request failed (${response.status}): ${message}`);
   }
 

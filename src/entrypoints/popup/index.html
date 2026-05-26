@@ -180,8 +180,69 @@
       .app__main {
         grid-area: main;
         overflow-y: auto;
-        padding: 16px 20px 20px;
+        overflow-x: hidden;
+        padding: 16px 20px 80px;
         background: #f8fafc;
+        position: relative;
+        scrollbar-gutter: stable;
+      }
+      /* Visible, comfortable scrollbar in the main scroll area. */
+      .app__main::-webkit-scrollbar {
+        width: 12px;
+      }
+      .app__main::-webkit-scrollbar-track {
+        background: #e2e8f0;
+        border-left: 1px solid #cbd5e1;
+      }
+      .app__main::-webkit-scrollbar-thumb {
+        background: #94a3b8;
+        border-radius: 8px;
+        border: 2px solid #e2e8f0;
+      }
+      .app__main::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+      }
+      .app__main {
+        scrollbar-width: auto;
+        scrollbar-color: #94a3b8 #e2e8f0;
+      }
+      /* Floating "Back to top" button — visible only after some scrolling. */
+      .back-to-top {
+        position: fixed;
+        right: 28px;
+        bottom: 56px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #0f172a;
+        color: #f8fafc;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid #1e293b;
+        box-shadow: 0 6px 16px rgb(15 23 42 / 0.18);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(8px);
+        transition:
+          opacity 0.16s ease,
+          transform 0.16s ease,
+          background 0.12s ease;
+        z-index: 50;
+      }
+      .back-to-top.is-visible {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+      .back-to-top:hover {
+        background: #1e293b;
+      }
+      .back-to-top__arrow {
+        font-size: 14px;
+        line-height: 1;
       }
       .workspace {
         display: none;
@@ -456,24 +517,93 @@
       }
 
       /* ============================================================
-         Row list (selectable rows)
+         Row list (selectable rows) — now collapsible accordions
          ============================================================ */
       .row-list {
         display: grid;
         gap: 6px;
       }
-      .row {
+      details.row {
         border: 1px solid #e2e8f0;
         border-radius: 8px;
-        padding: 10px 12px;
-        font-size: 12px;
         background: #fff;
-        display: grid;
-        gap: 4px;
+        overflow: hidden;
       }
-      .row.unsyncable {
+      details.row[open] {
+        box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+      }
+      details.row.unsyncable {
         background: #f8fafc;
         color: #64748b;
+      }
+      details.row > summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 8px 10px 8px 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 12px;
+      }
+      details.row > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.row > summary::before {
+        content: "▸";
+        color: #94a3b8;
+        font-size: 11px;
+        width: 12px;
+        text-align: center;
+        flex-shrink: 0;
+      }
+      details.row[open] > summary::before {
+        content: "▾";
+        color: #475569;
+      }
+      details.row__body {
+        padding: 10px 12px 12px;
+        border-top: 1px solid #e2e8f0;
+        background: #fff;
+      }
+      details.row.unsyncable .row__body {
+        background: #f8fafc;
+      }
+      .row-compact {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .row-compact__chip {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        font-size: 11px;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 2px 6px;
+        color: #334155;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .row-compact__chip-label {
+        font-size: 9.5px;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .row-compact__chip-value {
+        font-weight: 600;
+        color: #0f172a;
+      }
+      details.row.unsyncable .row-compact__chip-value {
+        color: #475569;
       }
       .row-header {
         display: flex;
@@ -565,6 +695,63 @@
       .badge.muted {
         background: #f1f5f9;
         color: #475569;
+      }
+      .badge.info {
+        background: #e0e7ff;
+        color: #3730a3;
+      }
+      .badge.purple {
+        background: #f3e8ff;
+        color: #6b21a8;
+      }
+      /* "How we matched" chip in the row summary line. */
+      .match-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10.5px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-weight: 600;
+        background: #eef2ff;
+        color: #3730a3;
+        border: 1px solid #c7d2fe;
+        white-space: nowrap;
+      }
+      .match-chip.is-phone {
+        background: #ecfeff;
+        color: #155e75;
+        border-color: #a5f3fc;
+      }
+      .match-chip.is-job {
+        background: #fef3c7;
+        color: #854d0e;
+        border-color: #fde68a;
+      }
+      .match-chip.is-ref {
+        background: #ede9fe;
+        color: #5b21b6;
+        border-color: #ddd6fe;
+      }
+      .match-chip.is-booking {
+        background: #fce7f3;
+        color: #9d174d;
+        border-color: #fbcfe8;
+      }
+      .match-chip.is-idempotent {
+        background: #dcfce7;
+        color: #166534;
+        border-color: #bbf7d0;
+      }
+      .match-chip.is-changes {
+        background: #fde68a;
+        color: #78350f;
+        border-color: #fcd34d;
+      }
+      .match-chip.is-missing {
+        background: #fee2e2;
+        color: #991b1b;
+        border-color: #fecaca;
       }
 
       /* ============================================================
@@ -985,11 +1172,14 @@
             <div>
               <h2>Form Leads — Quoted + Cubic Feet</h2>
               <p>
-                Sync the <strong>quoted</strong> and <strong>cubic_feet</strong>
-                columns of Form Leads from the Granot
-                <em>Follow Up Estimates</em> table into Vantage. Scan the page,
-                review syncable rows, then sync individually, in bulk, or on a
-                schedule via ScanAndSync.
+                Each row in the Granot <em>Follow Up Estimates</em> table is
+                matched to a Vantage form lead by <code>ref_no</code> (the
+                Mongo ID). For every match the popup tells you exactly what
+                will happen: lead with a booking attached (idempotent sync),
+                lead with no booking that already matches (idempotent sync),
+                or lead with no booking where <code>quoted</code> or
+                <code>cubic_feet</code> will change. Sync individually,
+                select-and-sync, or schedule via ScanAndSync.
               </p>
             </div>
             <span
@@ -1034,6 +1224,22 @@
               >
                 Deselect All
               </button>
+              <button
+                id="form-leads-expand-all"
+                class="btn-secondary btn-sm"
+                type="button"
+                disabled
+              >
+                ▾ Expand All Rows
+              </button>
+              <button
+                id="form-leads-collapse-all"
+                class="btn-secondary btn-sm"
+                type="button"
+                disabled
+              >
+                ▸ Collapse All Rows
+              </button>
             </div>
           </div>
 
@@ -1043,43 +1249,50 @@
               <span id="form-leads-auto-meta" class="card__title-meta"></span>
             </h3>
             <details class="explainer">
-              <summary>How ScanAndSync works (click to expand)</summary>
+              <summary>
+                How matches are decided & what the badges mean (click to
+                expand)
+              </summary>
               <div class="explainer__body">
-                <p>Every <strong>interval</strong>, the loop will:</p>
-                <ol>
-                  <li>
-                    Re-scan the Granot <em>Follow Up Estimates</em> table on the
-                    active tab.
-                  </li>
-                  <li>
-                    For each row with a valid <code>ref_no</code> AND
-                    <code>prior</code> of 0 or 1:
-                    <ul>
-                      <li>Look up the current Form Lead in Vantage.</li>
-                      <li>
-                        Compare its <code>quoted</code> and
-                        <code>cubic_feet</code>.
-                      </li>
-                      <li>If they differ, PATCH the Form Lead.</li>
-                    </ul>
-                  </li>
-                  <li>
-                    Rows with invalid/missing <code>ref_no</code>, missing
-                    <code>prior</code>, or <code>prior &gt; 1</code> are
-                    skipped.
-                  </li>
-                  <li>
-                    Booked jobs (<code>prior = 5</code>) are not in this table
-                    and are never touched.
-                  </li>
-                  <li>
-                    Errors do not stop the loop — they appear in the cycle
-                    history below.
-                  </li>
-                </ol>
                 <p>
-                  This is equivalent to clicking
-                  <em>Sync All Supported</em> once per interval.
+                  We look up every row in Vantage by
+                  <code>ref_no</code> = Mongo <code>_id</code> of a form lead.
+                </p>
+                <ul>
+                  <li>
+                    <strong>found · has booking</strong> — Vantage form lead
+                    has an attached <code>BookedLead</code>. Sync still runs
+                    idempotently so you can re-assert <code>quoted</code> and
+                    <code>cubic_feet</code>; nothing else changes.
+                  </li>
+                  <li>
+                    <strong>found · idempotent</strong> — Form lead has no
+                    booking and <code>quoted</code> + <code>cubic_feet</code>
+                    already match the Granot row. Sync sends the same values
+                    back to Vantage.
+                  </li>
+                  <li>
+                    <strong>found · will update</strong> — Form lead has no
+                    booking and sync will change at least one of
+                    <code>quoted</code> or <code>cubic_feet</code>. The exact
+                    diff is shown when you expand the row.
+                  </li>
+                  <li>
+                    <strong>invalid ref_no</strong> — The
+                    <code>ref_no</code> column is not a valid Mongo ID
+                    (typically "not provided" or empty).
+                  </li>
+                  <li>
+                    <strong>unsupported prior</strong> — The
+                    <code>prior</code> column is not 0 or 1 (e.g. booked at
+                    prior 5). Sync is not run automatically.
+                  </li>
+                </ul>
+                <p>
+                  Every <strong>interval</strong>, ScanAndSync re-runs the
+                  same logic as clicking
+                  <em>Sync All Supported</em>. Errors are reported in the
+                  cycle history below and do not stop the loop.
                 </p>
               </div>
             </details>
@@ -1207,14 +1420,16 @@
         >
           <div class="workspace__header">
             <div>
-              <h2>Call Leads — Match by Phone &amp; Enrich</h2>
+              <h2>Call Leads — Match by Phone or Job&nbsp;No</h2>
               <p>
-                When a CSR creates a Call Lead in the CRM and the customer's
-                phone matches a <em>Follow Up Estimates</em> row, sync
-                <code>job_no</code>, <code>cubic_feet</code>, pickup &amp;
-                delivery zips, and customer info from Granot onto the Call Lead
-                in Vantage. Booked Jobs (<code>prior = 5</code>) can now
-                reconcile booking-first Call Leads by <code>job_no</code>.
+                Granot's <em>Follow Up Estimates</em> and
+                <em>Booked Jobs</em> tables are reconciled into Vantage call
+                leads using the same matching rules: first by
+                <code>phone_number</code>, then by <code>job_no</code>. The
+                popup tells you which method matched, whether the call lead
+                already has a Vantage booking attached, and exactly which
+                fields would update. Sync always runs even when no fields
+                change (idempotent).
               </p>
             </div>
             <span
@@ -1267,6 +1482,22 @@
               >
                 Deselect All
               </button>
+              <button
+                id="call-leads-expand-all"
+                class="btn-secondary btn-sm"
+                type="button"
+                disabled
+              >
+                ▾ Expand All Rows
+              </button>
+              <button
+                id="call-leads-collapse-all"
+                class="btn-secondary btn-sm"
+                type="button"
+                disabled
+              >
+                ▸ Collapse All Rows
+              </button>
             </div>
           </div>
 
@@ -1276,44 +1507,64 @@
               <span id="call-leads-auto-meta" class="card__title-meta"></span>
             </h3>
             <details class="explainer">
-              <summary>How ScanAndSync works (click to expand)</summary>
+              <summary>
+                How matches are decided & what the badges mean (click to
+                expand)
+              </summary>
               <div class="explainer__body">
-                <p>Every <strong>interval</strong>, the loop will:</p>
+                <p>
+                  Each Granot row is reconciled against Vantage call leads in
+                  this order:
+                </p>
                 <ol>
                   <li>
-                    Re-scan the Granot <em>Call Leads</em> page (both
-                    <em>Follow Up Estimates</em> and
-                    <em>Booked Jobs</em> tables).
+                    By <strong>phone_number</strong>: normalize the phone and
+                    look up call leads with the same number.
                   </li>
                   <li>
-                    For each row in <em>Follow Up Estimates</em>:
-                    <ul>
-                      <li>
-                        Send its phone, <code>job_no</code>, customer, zips, and
-                        <code>est_cf</code> to Vantage.
-                      </li>
-                      <li>Vantage looks up a Call Lead by phone number.</li>
-                      <li>
-                        If found and the fields differ, Vantage updates the Call
-                        Lead.
-                      </li>
-                    </ul>
-                  </li>
-                  <li>
-                    Rows in <em>Booked Jobs</em> (<code>prior = 5</code>) are
-                    previewed separately and can be reconciled with the
-                    <em>Update Booked Call Leads</em> button.
-                  </li>
-                  <li>
-                    Rows in <em>Follow Up Estimates</em> with no matching Call
-                    Lead are reported as <code>no_match</code> and skipped — try
-                    again later once the CSR creates one.
-                  </li>
-                  <li>
-                    Errors do not stop the loop — they appear in the cycle
-                    history below.
+                    By <strong>job_no</strong>: when phone matching does not
+                    find anything, fall back to <code>job_no</code> (the
+                    Granot <em>job_no</em> column on Booked Jobs and Follow Up
+                    Estimates).
                   </li>
                 </ol>
+                <p>What the badges and statuses mean:</p>
+                <ul>
+                  <li>
+                    <strong>by phone</strong> — Vantage matched on phone
+                    only. Either no job_no was on the call lead yet, or the
+                    job_no on the call lead is different — the popup will
+                    show which fields update on sync.
+                  </li>
+                  <li>
+                    <strong>by job_no</strong> — Vantage matched purely on
+                    <code>job_no</code> (typical for Booked Jobs rows).
+                  </li>
+                  <li>
+                    <strong>by phone + job_no</strong> — Both identifiers
+                    pointed at the same call lead. Highest-confidence match.
+                  </li>
+                  <li>
+                    <strong>has booking</strong> — The matched call lead
+                    already has a Vantage booking attached. Sync is still
+                    allowed and runs idempotently — fields are refreshed but
+                    the booking link is preserved.
+                  </li>
+                  <li>
+                    <strong>not found</strong> — Neither phone nor job_no
+                    matched any call lead. The customer's phone number may
+                    have been changed in Granot or the lead is older than
+                    Vantage's retention window.
+                  </li>
+                </ul>
+                <p>
+                  <em>Follow Up Estimates</em> and <em>Booked Jobs</em> share
+                  the same matching rules; they are shown as separate tables
+                  for clarity. The
+                  <em>Update Booked Call Leads</em> button syncs the Booked
+                  Jobs rows in bulk; <em>Sync All Supported</em> syncs the
+                  Follow Up Estimates rows.
+                </p>
               </div>
             </details>
             <div class="btn-row">
@@ -1421,6 +1672,17 @@
           </div>
           <div id="diagnose-output"></div>
         </section>
+
+        <!-- Floating back-to-top button (in main scroll area, sticky to bottom) -->
+        <button
+          id="back-to-top"
+          class="back-to-top"
+          type="button"
+          aria-label="Scroll back to the top of this workspace"
+        >
+          <span class="back-to-top__arrow" aria-hidden="true">↑</span>
+          <span>Back to top</span>
+        </button>
 
         <!-- WORKSPACE: Debug -->
         <section id="ws-debug" class="workspace" data-workspace="debug">
