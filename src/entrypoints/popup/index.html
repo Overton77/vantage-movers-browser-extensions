@@ -1149,6 +1149,11 @@
         </div>
         <div class="sidebar-group">
           <div class="sidebar-group__label">Tools</div>
+          <button class="sidebar-tab" data-workspace="automation" type="button">
+            <span class="sidebar-tab__icon">🤖</span>
+            <span class="sidebar-tab__label">Automation</span>
+            <span class="sidebar-tab__pulse" aria-hidden="true"></span>
+          </button>
           <button class="sidebar-tab" data-workspace="diagnose" type="button">
             <span class="sidebar-tab__icon">🩺</span>
             <span class="sidebar-tab__label">Diagnose</span>
@@ -1647,6 +1652,108 @@
             <div id="call-leads-history">
               <p class="status-text" style="margin: 0">
                 No ScanAndSync cycles yet.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- WORKSPACE: Automation (background auto-sync) -->
+        <section
+          id="ws-automation"
+          class="workspace"
+          data-workspace="automation"
+        >
+          <div class="workspace__header">
+            <div>
+              <h2>Background Auto-Sync</h2>
+              <p>
+                Run Scan-and-Sync on a schedule from the extension's background
+                service worker, so cycles keep running after this popup closes.
+                Pin the Granot tab to use as the source, choose an interval, and
+                pick which workflows run. Start in <strong>preview-only</strong>
+                (dry-run) mode to verify behavior before enabling writes.
+              </p>
+            </div>
+            <span
+              id="auto-bg-badge"
+              class="workspace__header-badge is-hidden"
+            >
+              <span class="conn-chip__dot"></span>
+              <span id="auto-bg-badge-text">Background on</span>
+            </span>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">
+              Schedule
+              <span id="auto-bg-status" class="card__title-meta"></span>
+            </h3>
+            <div class="btn-row">
+              <label>
+                <input id="auto-bg-enabled" type="checkbox" />
+                Enable background auto-sync
+              </label>
+              <label
+                >Run every
+                <span class="interval-picker">
+                  <input
+                    id="auto-bg-interval"
+                    type="number"
+                    min="1"
+                    value="30"
+                  />
+                  minute(s)
+                </span>
+              </label>
+              <label>
+                <input id="auto-bg-preview-only" type="checkbox" checked />
+                Preview only (no writes)
+              </label>
+            </div>
+            <div class="btn-row">
+              <button id="auto-bg-pin-tab" class="btn-secondary" type="button">
+                📌 Pin Current Tab As Target
+              </button>
+              <button id="auto-bg-clear-tab" class="btn-danger" type="button">
+                Clear Target
+              </button>
+              <button id="auto-bg-refresh" class="btn-ghost" type="button">
+                ↻ Refresh
+              </button>
+            </div>
+            <div id="auto-bg-target" class="summary" style="margin-top: 8px">
+              No target tab pinned.
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">Workflows</h3>
+            <div class="btn-row">
+              <label>
+                <input id="auto-bg-wf-form-leads" type="checkbox" checked />
+                Form Leads
+              </label>
+              <label>
+                <input id="auto-bg-wf-call-enrichment" type="checkbox" />
+                Call Lead Enrichment
+              </label>
+              <label>
+                <input id="auto-bg-wf-booked" type="checkbox" />
+                Booked Call Reconciliation
+              </label>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">
+              Background Cycle History
+              <span id="auto-bg-history-meta" class="card__title-meta"
+                >0 cycle(s)</span
+              >
+            </h3>
+            <div id="auto-bg-history">
+              <p class="status-text" style="margin: 0">
+                No background cycles recorded yet.
               </p>
             </div>
           </div>

@@ -9,7 +9,6 @@ export const GRANOT_URL_PATTERNS = [
 
 /** Vantage API base URL */
 export const VANTAGE_API_BASE =
-  import.meta.env.VITE_VANTAGE_API_BASE ??
   'https://vantage-movers-main-server.vercel.app';
 
 /** Required for protected /api/v1 routes. Set only for local extension testing. */

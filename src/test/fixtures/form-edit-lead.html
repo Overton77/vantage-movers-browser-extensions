@@ -1,0 +1,26 @@
+<!--
+  Sanitized excerpt of a Granot form edit lead page (mpcharge~chargeswc).
+  Used by parser characterization tests (wired up in Unit 03).
+
+  Key elements the parser relies on:
+    - input[name="ORDREF"] carrying the Vantage form-lead Mongo ObjectId.
+    - an anchor href*="fustatuswc" whose cell text encodes "Level - N"
+      (priority level). Here Level - 1 -> syncable, quoted = true.
+-->
+<form name="theForm" method="post" action="/wc.dll?mpcharge~chargeswc">
+  <input type="hidden" name="ORDREF" value="6a1743a401a95dbdc5bd8797" />
+  <table border="0">
+    <tbody>
+      <tr>
+        <td>
+          Priority:
+          <a href="/wc.dll?fustatuswc~6a1743a401a95dbdc5bd8797">Level - 1</a>
+        </td>
+      </tr>
+      <tr>
+        <td>Customer</td>
+        <td><input type="text" name="CUSTNAME" value="Brendan M. Zarem" /></td>
+      </tr>
+    </tbody>
+  </table>
+</form>

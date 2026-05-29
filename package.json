@@ -12,11 +12,20 @@
     "build:zip": "pnpm build && pnpm zip",
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
-    "compile": "tsc --noEmit"
+    "compile": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "@types/webextension-polyfill": "^0.12.3",
+    "jsdom": "^29.1.1",
     "typescript": "^5.8.3",
+    "vitest": "^4.1.7",
     "wxt": "^0.20.7"
   },
   "dependencies": {
