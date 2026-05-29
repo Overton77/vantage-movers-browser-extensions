@@ -6,35 +6,63 @@ alwaysApply: false
 
 # Granot Extension Architecture
 
-- This WXT extension supports Chrome and Firefox. Keep browser APIs behind `webextension-polyfill`/WXT globals so `pnpm build` and `pnpm build:firefox` keep working.
-- `src/config.ts` owns CRM URL patterns, `VANTAGE_API_BASE`, and bundled `VITE_VANTAGE_API_SECRET`. The secret is sent as `x-api-secret` to protected Vantage `/api/v1` routes.
-- `src/entrypoints/granot-crm.content.ts` is the page reader. It must read the current Granot DOM on demand and return structured data to the popup; avoid mutating or adding controls to the Granot CRM page. The content script declares `allFrames: true` so it runs inside Granot's nested framesets/iframes, not just the top frame.
-- Form-lead sync only uses the visible `Follow Up Estimates` section. The Call Leads / Booked Call Leads workflow may parse `Booked Jobs` rows for popup preview, but do not sync `Booked Jobs` rows or use CSV links unless a future task explicitly changes the source of truth.
-- Granot table `ref_no` contains the Mongo `_id` for the Vantage `FormLead`. Granot `prior` is the source for Vantage `quoted`.
-- Treat only exact `prior` values `0` and `1` as syncable: `0 -> quoted=false`, `1 -> quoted=true`. Show other values as unsupported and skip them by default.
-- `src/entrypoints/popup/` owns the user workflow: scan, preview parsed rows, select/deselect rows, sync selected rows, and sync all supported rows.
-- Sync selected rows by preflighting `GET /api/v1/form-leads/:id`, comparing current `quoted`, and PATCHing only when the value changes. PATCHing triggers the server's WaitUntil Google Sheet sync.
-- Report row-level outcomes in the popup: updated, unchanged, skipped/unsupported, invalid `ref_no`, not found, and failed.
-- Before shipping extension changes, run `pnpm compile`, `pnpm build`, and `pnpm build:firefox`.
+- WXT browser extension for Chrome MV3 and Firefox MV2. Use WXT/browser globals (`webextension-polyfill` style) and validate with `pnpm compile`, `pnpm build`, and `pnpm build:firefox` before shipping.
+- `src/config.ts` owns Granot URL patterns, `VANTAGE_API_BASE`, and bundled `VITE_VANTAGE_API_SECRET`; Vantage `/api/v1` calls send the secret as `x-api-secret`.
 
-## Loading the extension into a browser
+## Layer Map
 
-WXT writes four output folders under `.output/`:
+- `src/entrypoints/*` are thin runtime adapters: content script reads Granot, background schedules automation, popup bootstraps UI.
+- `src/parsers/granot/*` are pure DOM parsers for Follow Up Estimates, current form-lead edit pages, and call/booked lead tables. Keep Granot DOM knowledge here.
+- `src/workflows/{form-leads,call-leads}/*` contains UI-free preview, payload, sync, and cycle logic reused by popup actions and background automation.
+- `src/api/*` is the Vantage HTTP boundary; `src/utils/api.ts` only re-exports legacy imports.
+- `src/messaging/tabs.ts` is the shared tab/frame transport. It resolves active or pinned tabs and aggregates `PARSE_*`/`DUMP_TABLES` responses across all frames.
+- `src/app/state.ts` is shared type vocabulary only. Runtime state initialization lives in `src/entrypoints/popup/app/state.ts`.
+- `src/auto-sync/*` owns unattended background automation: settings, lock, cycle summaries, persisted cycle history, and the runner.
+- `src/entrypoints/popup/{app,ui,workspaces}` owns the popup shell, typed DOM lookup, rendering, event wiring, and workspace actions.
 
-| Folder | Built by | When to load |
-| --- | --- | --- |
-| `.output/chrome-mv3/` | `pnpm build` | Day-to-day Chrome use. Stable. Re-run `pnpm build` after every code change. |
-| `.output/chrome-mv3-dev/` | `pnpm dev` | Only while iterating with HMR. **Requires `pnpm dev` to stay running.** Chrome MV3 dev mode registers the content script via `chrome.scripting.registerContentScripts` over the WXT dev WebSocket — if `pnpm dev` is killed the registration is lost and Scan Table / Debug: Log Tables silently return 0. |
-| `.output/firefox-mv2/` | `pnpm build:firefox` | Day-to-day Firefox use. Stable. |
-| `.output/firefox-mv2-dev/` | `pnpm dev:firefox` | HMR for Firefox. Firefox MV2 bakes `content_scripts` into the dev manifest, so it keeps working even after `pnpm dev:firefox` exits, but reload the add-on after rebuilds. |
+## Entrypoints
 
-- Chrome: `chrome://extensions` → Developer mode → Load unpacked → pick the folder above.
-- Firefox: `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → pick `manifest.json` inside the folder above.
-- After any source edit, rebuild the matching prod folder (or keep `pnpm dev` running) and click the reload icon on the extension card. Then hard-reload the Granot tab so the new content script is injected.
+- `src/entrypoints/granot-crm.content.ts` declares `allFrames: true` because Granot uses framesets/iframes. It handles `PING`, `DUMP_TABLES`, `PARSE_FOLLOW_UP_ROWS`, `PARSE_CURRENT_FORM_LEAD`, and `PARSE_CALL_LEAD_TABLES`. It must remain read-only: never mutate the CRM page or add controls.
+- `src/entrypoints/background.ts` reconciles the `granot-sync:auto-sync` alarm from stored settings and calls `runBackgroundAutoSync()` on alarm fire.
+- `src/entrypoints/popup/main.ts` only resolves popup/detached mode, builds `AppContext`, loads persisted preferences, attaches events, renders, and starts initial workspace loads.
 
-## Diagnosing "Scan Table / Debug: Log Tables returned 0"
+## Popup Structure
 
-1. Open DevTools on the Granot tab. The content script logs `[Granot Sync] Content script active on <url>` once per frame on load. If you don't see it: the script never injected — see the loading table above.
-2. The popup's status line will say "Content script did not respond in any frame" when no frame answered. That is the same root cause as #1.
-3. If the script logs but rows are 0, confirm you are on the `Follow Up Estimates` view (URL contains `mprep~adverlistwc`) and that the heading text "Follow Up Estimates" is present above the data table.
-4. Booked Jobs is intentionally skipped by `isInFollowUpSection`.
+- `app/context.ts`, `state.ts`, `router.ts`, `persistence.ts`, `events.ts`, `render.ts`, `shell.ts`, and `auto-sync.ts` form the popup shell.
+- `ui/dom.ts`, `status.ts`, and `components.ts` provide typed DOM handles and shared format/status helpers.
+- Each workspace uses `workspaces/<name>/actions.ts` for async scan/sync/storage/API work and `render.ts` for DOM output.
+- Workspace ids in code are `form-leads`, `form-edit-lead`, `call-leads`, `automation`, `diagnose`, and `debug`.
+- Popup persistence key `granot-sync:popup-state-v1` stores active workspace plus list interval/filter preferences only; never persist scan results.
+
+## Feature Model
+
+- Form Leads scans the visible `Follow Up Estimates` section only. `ref_no` is the Mongo `_id` for Vantage `FormLead`; `prior` maps to Vantage `quoted`.
+- Only exact `prior` values are syncable: `0 -> quoted=false`, `1 -> quoted=true`. Unsupported values are shown and skipped by default.
+- Form-lead sync preflights `GET /api/v1/form-leads/:id`, compares current `quoted`, and PATCHes only when the value changes. PATCH triggers server-side WaitUntil Google Sheet sync.
+- Current Lead sync parses the active Granot edit page, previews the parsed lead, and can apply a quoted override from the `form-edit-lead` workspace.
+- Call Leads parses follow-up and booked sections for enrichment/reconciliation preview. Booked reconciliation writes only when the explicit workflow setting enables it.
+- Manual scan-and-sync loops run from `popup/app/auto-sync.ts` while the popup is open.
+- Unattended scan-and-sync runs through `background.ts` -> `auto-sync/background-runner.ts`; defaults are disabled, preview-only, Form Leads enabled, call workflows disabled, and fallback form matches disabled.
+- Detached popup mode is handled by `app/shell.ts` using `?detached=1&targetTabId=...` to keep a popup window tied to a Granot tab.
+- Diagnostics and Debug workspaces use `PING` and `DUMP_TABLES` to troubleshoot content-script injection and parser visibility.
+
+## Automation Storage
+
+- `granot-sync:auto-sync-settings-v1`: normalized background settings.
+- `granot-sync:auto-sync-cycles-v1`: newest-first background cycle log, capped to 25 cycles per workflow.
+- `granot-sync:auto-sync-lock-v1`: 5-minute stale-lock mutex preventing overlapping background cycles.
+
+## Editing Rules
+
+- Keep entrypoints thin; put new behavior in parsers, workflows, API modules, or workspace `actions.ts`/`render.ts`.
+- Never import popup UI/state modules from `src/entrypoints/background.ts` or `src/auto-sync/background-runner.ts`.
+- Use `src/messaging/tabs.ts` for all content-script calls from popup or background code.
+- Preserve row-level outcomes in UI/cycles: updated, unchanged, skipped/unsupported, invalid id, not found, and failed.
+- Do not sync Booked Jobs as Form Leads or use CSV links as source of truth unless the task explicitly changes that contract.
+
+## Browser Loading Notes
+
+- Prod load folders: `.output/chrome-mv3/` from `pnpm build`, `.output/firefox-mv2/` from `pnpm build:firefox`.
+- Dev folders: `.output/chrome-mv3-dev/` from `pnpm dev`, `.output/firefox-mv2-dev/` from `pnpm dev:firefox`.
+- Chrome MV3 dev content-script registration depends on the running `pnpm dev` WebSocket; if it stops, Scan/Debug may return zero frame responses.
+- After rebuilding or reloading the extension, hard-reload the Granot tab so the content script reinjects. If scans return zero, check for the content-script startup log in the Granot tab and confirm the expected Follow Up Estimates or Booked Jobs section is visible.
