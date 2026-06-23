@@ -5,10 +5,11 @@
 // Extracted from `popup/main.ts` in Unit 07.
 import {
   getFormLeadById,
+  searchFormLeads,
   updateFormLead,
 } from "../../../../utils/api";
 import {
-  isSyncableRow,
+  isRowSyncable,
   rowToSyncCandidate,
 } from "../../../../workflows/form-leads/payloads";
 import { previewFormLeadRows as runFormLeadPreview } from "../../../../workflows/form-leads/preview";
@@ -27,7 +28,7 @@ import { renderFormLeads, renderFormLeadsLogTables } from "./render";
 
 export async function scanFollowUpTable(
   app: AppContext,
-  options: { quiet: boolean },
+  options: { quiet: boolean; awaitPreview?: boolean },
 ): Promise<boolean> {
   const { dom } = app;
   if (!options.quiet) {
@@ -77,10 +78,17 @@ export async function scanFollowUpTable(
     renderFormLeads(app);
     renderFormLeadsLogTables(app);
 
-    void previewFormLeadRows(app, response.rows).then(() => {
+    const previewPromise = previewFormLeadRows(app, response.rows);
+    if (options.awaitPreview) {
+      await previewPromise;
       renderFormLeads(app);
       renderFormLeadsLogTables(app);
-    });
+    } else {
+      void previewPromise.then(() => {
+        renderFormLeads(app);
+        renderFormLeadsLogTables(app);
+      });
+    }
 
     if (!options.quiet) {
       setStatus(
@@ -116,7 +124,10 @@ export async function previewFormLeadRows(
   app: AppContext,
   rows: FollowUpRow[],
 ): Promise<void> {
-  const previews = await runFormLeadPreview(rows, { getFormLeadById });
+  const previews = await runFormLeadPreview(rows, {
+    getFormLeadById,
+    searchFormLeads,
+  });
   for (const [id, preview] of previews) {
     app.state.formLeads.previews.set(id, preview);
   }
@@ -127,7 +138,10 @@ export async function syncRows(
   rows: FollowUpRow[],
 ): Promise<SyncCounts | undefined> {
   const { dom } = app;
-  const syncableRows = rows.filter(isSyncableRow).map(rowToSyncCandidate);
+  const previews = app.state.formLeads.previews;
+  const syncableRows = rows
+    .filter((row) => isRowSyncable(row, previews.get(row.id)))
+    .map((row) => rowToSyncCandidate(row, previews.get(row.id)));
   if (syncableRows.length === 0) {
     setStatus(dom, "No supported rows selected for sync.", { tone: "error" });
     return undefined;

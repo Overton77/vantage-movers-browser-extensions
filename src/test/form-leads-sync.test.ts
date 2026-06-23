@@ -10,6 +10,7 @@ function makeCandidate(
   return {
     id: "row-1",
     refNo: "ref-1",
+    prior: "1",
     quoted: true,
     cubicFeet: 300,
     status: "syncable",
@@ -77,7 +78,7 @@ describe("syncLeadCandidates", () => {
     expect(counts).toEqual({ updated: 0, unchanged: 1, failed: 0 });
   });
 
-  it("skips a candidate without a quoted target and never calls the API", async () => {
+  it("counts an API failure as failed", async () => {
     const updateFormLead = vi.fn(async () => makeLookup());
     const getFormLeadById = vi.fn(async () => makeLookup());
     const results: Record<string, RowSyncResult> = {};
@@ -93,6 +94,28 @@ describe("syncLeadCandidates", () => {
     expect(getFormLeadById).not.toHaveBeenCalled();
     expect(updateFormLead).not.toHaveBeenCalled();
     expect(results["row-1"].status).toBe("skipped");
+    expect(counts).toEqual({ updated: 0, unchanged: 0, failed: 0 });
+  });
+
+  it("skips duplicate quarantine leads without PATCHing", async () => {
+    const updateFormLead = vi.fn(async () => makeLookup());
+    const results: Record<string, RowSyncResult> = {};
+
+    const counts = await syncLeadCandidates(
+      [makeCandidate()],
+      {
+        getFormLeadById: async () =>
+          makeLookup({ duplicate: true }),
+        updateFormLead,
+      },
+      (id, result) => {
+        results[id] = result;
+      },
+    );
+
+    expect(updateFormLead).not.toHaveBeenCalled();
+    expect(results["row-1"].status).toBe("skipped");
+    expect(results["row-1"].message).toContain("duplicate");
     expect(counts).toEqual({ updated: 0, unchanged: 0, failed: 0 });
   });
 

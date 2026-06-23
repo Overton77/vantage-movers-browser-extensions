@@ -1,68 +1,55 @@
 ---
-description: Granot CRM browser extension architecture and sync workflow
+description: Granot Sync extension architecture, layers, and editing rules
 globs: src/**/*.ts,src/**/*.html,wxt.config.ts
 alwaysApply: false
 ---
 
 # Granot Extension Architecture
 
-- WXT browser extension for Chrome MV3 and Firefox MV2. Use WXT/browser globals (`webextension-polyfill` style) and validate with `pnpm compile`, `pnpm build`, and `pnpm build:firefox` before shipping.
-- `src/config.ts` owns Granot URL patterns, `VANTAGE_API_BASE`, and bundled `VITE_VANTAGE_API_SECRET`; Vantage `/api/v1` calls send the secret as `x-api-secret`.
+- WXT browser extension for Chrome MV3 and Firefox MV2. Use the WXT/browser globals (`webextension-polyfill` style) and keep the docs aligned with `pnpm compile` as the baseline verifier.
+- `src/config.ts` owns Granot URL patterns, `VANTAGE_API_BASE`, and the dev-only `VITE_VANTAGE_API_SECRET` fallback. Production Vantage `/api/v1` calls use extension Bearer auth from `src/auth/`; do not ship `x-api-secret` in distributed builds.
 
 ## Layer Map
 
-- `src/entrypoints/*` are thin runtime adapters: content script reads Granot, background schedules automation, popup bootstraps UI.
-- `src/parsers/granot/*` are pure DOM parsers for Follow Up Estimates, current form-lead edit pages, and call/booked lead tables. Keep Granot DOM knowledge here.
-- `src/workflows/{form-leads,call-leads}/*` contains UI-free preview, payload, sync, and cycle logic reused by popup actions and background automation.
-- `src/api/*` is the Vantage HTTP boundary; `src/utils/api.ts` only re-exports legacy imports.
-- `src/messaging/tabs.ts` is the shared tab/frame transport. It resolves active or pinned tabs and aggregates `PARSE_*`/`DUMP_TABLES` responses across all frames.
-- `src/app/state.ts` is shared type vocabulary only. Runtime state initialization lives in `src/entrypoints/popup/app/state.ts`.
-- `src/auto-sync/*` owns unattended background automation: settings, lock, cycle summaries, persisted cycle history, and the runner.
-- `src/entrypoints/popup/{app,ui,workspaces}` owns the popup shell, typed DOM lookup, rendering, event wiring, and workspace actions.
+- `src/entrypoints/*` are thin runtime adapters: `granot-crm.content.ts` reads Granot pages, `background.ts` schedules unattended automation, and `popup/main.ts` bootstraps the popup shell.
+- `src/entrypoints/popup/{app,ui,workspaces}` owns popup state wiring, rendering, DOM helpers, events, routing, and workspace actions.
+- `src/parsers/granot/*` are the DOM and CSV parsers. Keep Granot-specific page knowledge there.
+- `src/api/*` is the Vantage HTTP boundary. `src/utils/api.ts` only re-exports the barrel for legacy imports.
+- `src/auth/*` owns extension login, refresh, token storage, and role gating. Store auth under `granot-sync:auth-session-v1`.
+- `src/messaging/tabs.ts` is the shared tab/frame transport used by the popup and background runner.
+- `src/app/state.ts` defines shared state types only; runtime state is created in `src/entrypoints/popup/app/state.ts`.
+- `src/auto-sync/*` owns unattended background automation. The popup-only timer in `src/entrypoints/popup/app/auto-sync.ts` remains a compatibility path while the background runner is the persistent one.
+- Use the service rules for implementation details:
+  - `granot-form-leads-workflow.mdc`
+  - `granot-call-leads-workflow.mdc`
+  - `granot-crm-csv-s3-sync.mdc`
+  - `granot-auto-sync-background.mdc`
 
 ## Entrypoints
 
-- `src/entrypoints/granot-crm.content.ts` declares `allFrames: true` because Granot uses framesets/iframes. It handles `PING`, `DUMP_TABLES`, `PARSE_FOLLOW_UP_ROWS`, `PARSE_CURRENT_FORM_LEAD`, and `PARSE_CALL_LEAD_TABLES`. It must remain read-only: never mutate the CRM page or add controls.
-- `src/entrypoints/background.ts` reconciles the `granot-sync:auto-sync` alarm from stored settings and calls `runBackgroundAutoSync()` on alarm fire.
-- `src/entrypoints/popup/main.ts` only resolves popup/detached mode, builds `AppContext`, loads persisted preferences, attaches events, renders, and starts initial workspace loads.
+- `src/entrypoints/granot-crm.content.ts` uses `allFrames: true` because Granot pages use framesets/iframes. It handles `PING`, `DUMP_TABLES`, `PARSE_FOLLOW_UP_ROWS`, `PARSE_CURRENT_FORM_LEAD`, `APPLY_BINDING_ESTIMATE_FEE`, `PARSE_CALL_LEAD_TABLES`, `DISCOVER_CRM_CSV_LINKS`, and `FETCH_CRM_CSV`. This entrypoint must stay read-only.
+- `src/messaging/tabs.ts` aggregates the frame responses for `DUMP_TABLES`, `PARSE_FOLLOW_UP_ROWS`, `PARSE_CURRENT_FORM_LEAD`, `APPLY_BINDING_ESTIMATE_FEE`, `PARSE_CALL_LEAD_TABLES`, and `DISCOVER_CRM_CSV_LINKS`. `FETCH_CRM_CSV` is sent directly to the chosen frame.
+- `src/entrypoints/background.ts` reconciles the `granot-sync:auto-sync` alarm on install, startup, auth changes, and settings changes, then calls `runBackgroundAutoSync()` on alarm fire only for owner sessions.
+- `src/entrypoints/popup/main.ts` resolves popup vs. detached mode, builds `AppContext`, loads persisted preferences, wires events, renders, and triggers the first workspace loads.
 
 ## Popup Structure
 
 - `app/context.ts`, `state.ts`, `router.ts`, `persistence.ts`, `events.ts`, `render.ts`, `shell.ts`, and `auto-sync.ts` form the popup shell.
 - `ui/dom.ts`, `status.ts`, and `components.ts` provide typed DOM handles and shared format/status helpers.
-- Each workspace uses `workspaces/<name>/actions.ts` for async scan/sync/storage/API work and `render.ts` for DOM output.
-- Workspace ids in code are `form-leads`, `form-edit-lead`, `call-leads`, `automation`, `diagnose`, and `debug`.
-- Popup persistence key `granot-sync:popup-state-v1` stores active workspace plus list interval/filter preferences only; never persist scan results.
-
-## Feature Model
-
-- Form Leads scans the visible `Follow Up Estimates` section only. `ref_no` is the Mongo `_id` for Vantage `FormLead`; `prior` maps to Vantage `quoted`.
-- Only exact `prior` values are syncable: `0 -> quoted=false`, `1 -> quoted=true`. Unsupported values are shown and skipped by default.
-- Form-lead sync preflights `GET /api/v1/form-leads/:id`, compares current `quoted`, and PATCHes only when the value changes. PATCH triggers server-side WaitUntil Google Sheet sync.
-- Current Lead sync parses the active Granot edit page, previews the parsed lead, and can apply a quoted override from the `form-edit-lead` workspace.
-- Call Leads parses follow-up and booked sections for enrichment/reconciliation preview. Booked reconciliation writes only when the explicit workflow setting enables it.
-- Manual scan-and-sync loops run from `popup/app/auto-sync.ts` while the popup is open.
-- Unattended scan-and-sync runs through `background.ts` -> `auto-sync/background-runner.ts`; defaults are disabled, preview-only, Form Leads enabled, call workflows disabled, and fallback form matches disabled.
-- Detached popup mode is handled by `app/shell.ts` using `?detached=1&targetTabId=...` to keep a popup window tied to a Granot tab.
-- Diagnostics and Debug workspaces use `PING` and `DUMP_TABLES` to troubleshoot content-script injection and parser visibility.
-
-## Automation Storage
-
-- `granot-sync:auto-sync-settings-v1`: normalized background settings.
-- `granot-sync:auto-sync-cycles-v1`: newest-first background cycle log, capped to 25 cycles per workflow.
-- `granot-sync:auto-sync-lock-v1`: 5-minute stale-lock mutex preventing overlapping background cycles.
+- Workspace ids in code are `form-leads`, `form-edit-lead`, `binding-estimate-fee`, `call-leads`, `search`, `csv`, `automation`, `diagnose`, and `debug`. Employees may access only `binding-estimate-fee`; owners may access all workspaces.
+- `search` is read-only and browses Vantage form/call leads through `GET /api/v1/form-leads` and `GET /api/v1/call-leads`; it never scans Granot or syncs.
+- Popup persistence key `granot-sync:popup-state-v1` stores the active workspace plus interval/filter/query preferences only. Do not persist scan results there.
 
 ## Editing Rules
 
-- Keep entrypoints thin; put new behavior in parsers, workflows, API modules, or workspace `actions.ts`/`render.ts`.
+- Keep entrypoints thin; put behavior in parsers, workflows, API modules, or workspace `actions.ts` / `render.ts`.
 - Never import popup UI/state modules from `src/entrypoints/background.ts` or `src/auto-sync/background-runner.ts`.
-- Use `src/messaging/tabs.ts` for all content-script calls from popup or background code.
-- Preserve row-level outcomes in UI/cycles: updated, unchanged, skipped/unsupported, invalid id, not found, and failed.
-- Do not sync Booked Jobs as Form Leads or use CSV links as source of truth unless the task explicitly changes that contract.
+- Use `src/messaging/tabs.ts` for Granot tab communication from popup or background code.
+- Preserve the row-level outcome vocabulary already used by the workflows and cycle history.
+- If a task touches workflow internals, check the matching service rule first rather than duplicating that logic here.
 
 ## Browser Loading Notes
 
-- Prod load folders: `.output/chrome-mv3/` from `pnpm build`, `.output/firefox-mv2/` from `pnpm build:firefox`.
-- Dev folders: `.output/chrome-mv3-dev/` from `pnpm dev`, `.output/firefox-mv2-dev/` from `pnpm dev:firefox`.
-- Chrome MV3 dev content-script registration depends on the running `pnpm dev` WebSocket; if it stops, Scan/Debug may return zero frame responses.
-- After rebuilding or reloading the extension, hard-reload the Granot tab so the content script reinjects. If scans return zero, check for the content-script startup log in the Granot tab and confirm the expected Follow Up Estimates or Booked Jobs section is visible.
+- Prod output folders are `.output/chrome-mv3/` from `pnpm build` and `.output/firefox-mv2/` from `pnpm build:firefox`.
+- Dev output folders are `.output/chrome-mv3-dev/` from `pnpm dev` and `.output/firefox-mv2-dev/` from `pnpm dev:firefox`.
+- If scans return zero responses, reload the Granot tab and confirm the content script is active in the expected Follow Up Estimates or Booked Jobs frame.

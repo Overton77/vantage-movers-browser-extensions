@@ -5,6 +5,7 @@
 // that keeps running after the popup closes.
 import {
   buildCycleSummary,
+  bookedReconciliationRowToCycleDetail,
   callEnrichmentRowToCycleDetail,
   followUpRowToCycleDetail,
   intervalMs,
@@ -12,16 +13,24 @@ import {
   type CycleEntry,
 } from "../../../auto-sync/cycles";
 import type { ListWorkspaceId } from "../../../app/state";
-import { canSyncCallEnrichmentRow } from "../../../workflows/call-leads/payloads";
-import { isSyncableRow } from "../../../workflows/form-leads/payloads";
+import {
+  canSyncBookedCallReconciliationRow,
+  canSyncCallEnrichmentRow,
+} from "../../../workflows/call-leads/payloads";
+import { isRowSyncable } from "../../../workflows/form-leads/payloads";
+import type { SyncCounts } from "../../../workflows/form-leads/types";
 import type { AppContext } from "./context";
 import { formatTime } from "../ui/components";
 import {
   scanCallLeadsPreview,
+  syncBookedCallRows,
   syncCallRows,
 } from "../workspaces/call-leads/actions";
 import { renderCallLeads, renderCallLeadsHistory } from "../workspaces/call-leads/render";
-import { scanFollowUpTable, syncRows } from "../workspaces/form-leads/actions";
+import {
+  scanFollowUpTable,
+  syncRows,
+} from "../workspaces/form-leads/actions";
 import { renderFormLeads, renderFormLeadsHistory } from "../workspaces/form-leads/render";
 
 const MAX_CYCLES = 40;
@@ -81,7 +90,10 @@ async function runAutoScanAndSync(
 
   try {
     if (workflow === "form-leads") {
-      const scanned = await scanFollowUpTable(app, { quiet: true });
+      const scanned = await scanFollowUpTable(app, {
+        quiet: true,
+        awaitPreview: true,
+      });
       if (!scanned) {
         pushCycle(app, workflow, {
           status: "failed",
@@ -94,11 +106,16 @@ async function runAutoScanAndSync(
         return;
       }
 
-      const syncableRows = app.state.formLeads.parsedRows.filter(isSyncableRow);
-      const unsyncableRows = app.state.formLeads.parsedRows.filter(
-        (row) => !isSyncableRow(row),
+      const syncableRows = app.state.formLeads.parsedRows.filter((row) =>
+        isRowSyncable(row, app.state.formLeads.previews.get(row.id)),
       );
-      const results = await syncRows(app, syncableRows);
+      const unsyncableRows = app.state.formLeads.parsedRows.filter(
+        (row) => !isRowSyncable(row, app.state.formLeads.previews.get(row.id)),
+      );
+      const results =
+        syncableRows.length > 0
+          ? await syncRows(app, syncableRows)
+          : undefined;
 
       const details: CycleDetail[] = [
         ...syncableRows.map((row) =>
@@ -111,7 +128,10 @@ async function runAutoScanAndSync(
       ];
 
       pushCycle(app, workflow, {
-        status: results && results.failed === 0 ? "ok" : "failed",
+        status:
+          syncableRows.length === 0 || (results && results.failed === 0)
+            ? "ok"
+            : "failed",
         message: buildCycleSummary("Form Leads", syncableRows.length, results),
         details,
         startedAt,
@@ -134,32 +154,71 @@ async function runAutoScanAndSync(
       return;
     }
 
-    const syncableRows = app.state.callLeads.enrichmentRows.filter(
+    const syncableEnrichmentRows = app.state.callLeads.enrichmentRows.filter(
       canSyncCallEnrichmentRow,
     );
-    const unsyncableRows = app.state.callLeads.enrichmentRows.filter(
+    const unsyncableEnrichmentRows = app.state.callLeads.enrichmentRows.filter(
       (row) => !canSyncCallEnrichmentRow(row),
     );
-    const results = await syncCallRows(
-      app,
-      syncableRows.map((row) => row.payload),
+    const syncableBookedRows = app.state.callLeads.bookedReconciliationRows.filter(
+      canSyncBookedCallReconciliationRow,
     );
+    const unsyncableBookedRows =
+      app.state.callLeads.bookedReconciliationRows.filter(
+        (row) => !canSyncBookedCallReconciliationRow(row),
+      );
+
+    const enrichmentResults =
+      syncableEnrichmentRows.length > 0
+        ? await syncCallRows(
+            app,
+            syncableEnrichmentRows.map((row) => row.payload),
+          )
+        : undefined;
+    const bookedResults =
+      syncableBookedRows.length > 0
+        ? await syncBookedCallRows(
+            app,
+            syncableBookedRows.map((row) => row.payload),
+          )
+        : undefined;
+
     const latestEnrichmentRows = app.state.callLeads.enrichmentRows;
+    const latestBookedRows = app.state.callLeads.bookedReconciliationRows;
+
+    const combinedResults = mergeSyncCounts(enrichmentResults, bookedResults);
+    const syncableTotal =
+      syncableEnrichmentRows.length + syncableBookedRows.length;
 
     const details: CycleDetail[] = [
-      ...syncableRows.map((row) =>
+      ...syncableEnrichmentRows.map((row) =>
         callEnrichmentRowToCycleDetail(
           latestEnrichmentRows.find(
             (preview) => preview.payload.row_id === row.payload.row_id,
           ) ?? row,
         ),
       ),
-      ...unsyncableRows.map((row) => callEnrichmentRowToCycleDetail(row)),
+      ...unsyncableEnrichmentRows.map((row) =>
+        callEnrichmentRowToCycleDetail(row),
+      ),
+      ...syncableBookedRows.map((row) =>
+        bookedReconciliationRowToCycleDetail(
+          latestBookedRows.find(
+            (preview) => preview.payload.row_id === row.payload.row_id,
+          ) ?? row,
+        ),
+      ),
+      ...unsyncableBookedRows.map((row) =>
+        bookedReconciliationRowToCycleDetail(row),
+      ),
     ];
 
     pushCycle(app, workflow, {
-      status: results && results.failed === 0 ? "ok" : "failed",
-      message: buildCycleSummary("Call Leads", syncableRows.length, results),
+      status:
+        syncableTotal === 0 || (combinedResults && combinedResults.failed === 0)
+          ? "ok"
+          : "failed",
+      message: buildCycleSummary("Call Leads", syncableTotal, combinedResults),
       details,
       startedAt,
       finishedAt: formatTime(new Date()),
@@ -168,6 +227,23 @@ async function runAutoScanAndSync(
     renderFormLeads(app);
     renderCallLeads(app);
   }
+}
+
+function mergeSyncCounts(
+  ...counts: Array<SyncCounts | undefined>
+): SyncCounts | undefined {
+  const defined = counts.filter((count): count is SyncCounts => count !== undefined);
+  if (defined.length === 0) {
+    return undefined;
+  }
+  return defined.reduce(
+    (total, count) => ({
+      updated: total.updated + count.updated,
+      unchanged: total.unchanged + count.unchanged,
+      failed: total.failed + count.failed,
+    }),
+    { updated: 0, unchanged: 0, failed: 0 },
+  );
 }
 
 function pushCycle(

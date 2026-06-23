@@ -25,9 +25,9 @@ export async function getTargetTabId(targetTabId?: number): Promise<number> {
 
 /**
  * Sends a message to the resolved Granot tab. Parser messages
- * (`PARSE_*`/`DUMP_TABLES`) are broadcast to every frame and the responses are
- * merged via {@link aggregateFrameResponses}; all other messages go to the
- * top frame only.
+ * (`PARSE_*`/`DUMP_TABLES`) plus targeted DOM actions are broadcast to every
+ * frame and the responses are merged via {@link aggregateFrameResponses}; all
+ * other messages go to the top frame only.
  */
 export async function sendActiveTabMessage<T>(
   message: unknown,
@@ -59,7 +59,9 @@ export function isFrameAggregatedMessage(
     (message.type === "DUMP_TABLES" ||
       message.type === "PARSE_FOLLOW_UP_ROWS" ||
       message.type === "PARSE_CURRENT_FORM_LEAD" ||
-      message.type === "PARSE_CALL_LEAD_TABLES")
+      message.type === "APPLY_BINDING_ESTIMATE_FEE" ||
+      message.type === "PARSE_CALL_LEAD_TABLES" ||
+      message.type === "DISCOVER_CRM_CSV_LINKS")
   );
 }
 
@@ -125,6 +127,29 @@ export function aggregateFrameResponses<T>(
     } as T;
   }
 
+  if (message.type === "APPLY_BINDING_ESTIMATE_FEE") {
+    const updatedResponse = validResponses.find(
+      (response) => response.updated === true,
+    );
+    const foundResponse = validResponses.find(
+      (response) => response.pageFound === true,
+    );
+    const aggregated =
+      updatedResponse ??
+      foundResponse ?? {
+        ok: true,
+        pageFound: false,
+        updated: false,
+        message:
+          "No Initial Price or Binding Estimate Fee fields were found in any frame.",
+      };
+    return {
+      ...aggregated,
+      frameResponses: validResponses.length,
+      frameCount: responses.length,
+    } as T;
+  }
+
   if (message.type === "PARSE_CALL_LEAD_TABLES") {
     const foundResponse = validResponses.find(
       (response) => response.pageFound === true,
@@ -141,7 +166,40 @@ export function aggregateFrameResponses<T>(
     } as T;
   }
 
+  if (message.type === "DISCOVER_CRM_CSV_LINKS") {
+    const links = mergeUniqueCsvLinks(validResponses);
+    const crmOrigin =
+      validResponses.find((response) => typeof response.crmOrigin === "string")
+        ?.crmOrigin ?? validResponses[0]?.crmOrigin;
+    return {
+      ok: true,
+      links,
+      crmOrigin,
+      frameResponses: validResponses.length,
+      frameCount: responses.length,
+    } as T;
+  }
+
   return validResponses[0] as T;
+}
+
+function mergeUniqueCsvLinks(
+  responses: Record<string, unknown>[],
+): Array<Record<string, unknown>> {
+  const links = new Map<string, Record<string, unknown>>();
+  for (const response of responses) {
+    if (!Array.isArray(response.links)) {
+      continue;
+    }
+    for (const link of response.links) {
+      if (!isRecord(link) || typeof link.href !== "string") {
+        continue;
+      }
+      const key = `${String(link.csvKind ?? "")}:${link.href}`;
+      links.set(key, link);
+    }
+  }
+  return [...links.values()];
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

@@ -24,6 +24,22 @@ export type CurrentFormLeadParseResult = {
   lead?: CurrentFormLead;
 };
 
+export type BindingEstimateFeeApplyResult = {
+  ok: true;
+  pageFound: boolean;
+  updated: boolean;
+  initialPrice?: string;
+  previousFeeLabel?: string;
+  previousFeeAmount?: string;
+  feeAmount?: string;
+  sourceField?: string;
+  targetField?: string;
+  labelField?: string;
+  frameResponses?: number;
+  frameCount?: number;
+  message: string;
+};
+
 export function parseCurrentFormLead(
   root: Document,
   pageUrl: string,
@@ -107,4 +123,117 @@ export function parseCurrentFormLead(
   } satisfies CurrentFormLeadParseResult;
   log("Parsed current form lead:", result);
   return result;
+}
+
+export function applyBindingEstimateFeeFromInitialPrice(
+  root: Document,
+): BindingEstimateFeeApplyResult {
+  const initialPriceInput = root.querySelector<HTMLInputElement>(
+    'form[name="theForm"] input[name="I1TOTAL"], input[name="I1TOTAL"]',
+  );
+  const extraFeeFields = findFirstExtraFeeFields(root);
+
+  const pageFound = Boolean(initialPriceInput || extraFeeFields);
+  if (!pageFound) {
+    return {
+      ok: true,
+      pageFound: false,
+      updated: false,
+      message:
+        "No Initial Price or Extra fee fields were found on this frame.",
+    };
+  }
+
+  if (!initialPriceInput) {
+    return {
+      ok: true,
+      pageFound: true,
+      updated: false,
+      message: "Found Extra fee fields but could not find Initial Price field I1TOTAL.",
+    };
+  }
+
+  if (!extraFeeFields) {
+    return {
+      ok: true,
+      pageFound: true,
+      updated: false,
+      initialPrice: initialPriceInput.value,
+      sourceField: initialPriceInput.name,
+      message:
+        "Found Initial Price but could not find the first Extra fee label and amount fields.",
+    };
+  }
+
+  const { label: bindingEstimateLabel, amount: bindingEstimateAmount } =
+    extraFeeFields;
+
+  const initialPrice = parseCurrencyInput(initialPriceInput.value);
+  if (initialPrice === undefined) {
+    return {
+      ok: true,
+      pageFound: true,
+      updated: false,
+      initialPrice: initialPriceInput.value,
+      sourceField: initialPriceInput.name,
+      targetField: bindingEstimateAmount.name,
+      labelField: bindingEstimateLabel.name,
+      message: `Initial Price value "${initialPriceInput.value}" is not a valid number.`,
+    };
+  }
+
+  const previousFeeLabel = bindingEstimateLabel.value;
+  const previousFeeAmount = bindingEstimateAmount.value;
+  const feeAmount = formatCurrency(initialPrice * 0.85);
+  bindingEstimateLabel.value = "Binding Estimate Fee";
+  bindingEstimateAmount.value = feeAmount;
+  dispatchFieldUpdate(bindingEstimateLabel);
+  dispatchFieldUpdate(bindingEstimateAmount);
+
+  return {
+    ok: true,
+    pageFound: true,
+    updated: true,
+    initialPrice: formatCurrency(initialPrice),
+    previousFeeLabel,
+    previousFeeAmount,
+    feeAmount,
+    sourceField: initialPriceInput.name,
+    targetField: bindingEstimateAmount.name,
+    labelField: bindingEstimateLabel.name,
+    message: `Wrote "Binding Estimate Fee" and ${formatCurrency(initialPrice)} × 85% = ${feeAmount}.`,
+  };
+}
+
+function findFirstExtraFeeFields(
+  root: Document,
+): { label: HTMLInputElement; amount: HTMLInputElement } | undefined {
+  const extraLabels = root.querySelectorAll<HTMLInputElement>(
+    'input[name^="EXTRA"]:not([name$="AMT"])',
+  );
+  for (const label of extraLabels) {
+    const amount = root.querySelector<HTMLInputElement>(
+      `input[name="${label.name}AMT"]`,
+    );
+    if (amount) {
+      return { label, amount };
+    }
+  }
+  return undefined;
+}
+
+function parseCurrencyInput(value: string): number | undefined {
+  const normalized = value.replace(/[$,\s]/g, "");
+  if (!normalized) return undefined;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function formatCurrency(value: number): string {
+  return value.toFixed(2);
+}
+
+function dispatchFieldUpdate(input: HTMLInputElement): void {
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
 }

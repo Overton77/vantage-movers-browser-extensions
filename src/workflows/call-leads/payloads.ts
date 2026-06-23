@@ -1,5 +1,9 @@
 // Pure helpers that map parsed Call Leads preview sections into Vantage API
 // payloads, plus the "is this row syncable?" predicates. No DOM / messaging.
+//
+// `phone` is included on every payload so the server can match call leads during
+// preview and sync. It must never be written to CallLead.phone_number — only
+// enrichment fields (name, email, zips, job_no, etc.) are updated on sync.
 import type {
   BookedCallLeadReconciliationRowPayload,
   CallLeadEnrichmentRowPayload,
@@ -42,6 +46,7 @@ export function callLeadRowsToEnrichmentPayloads(
     row_id: row.id,
     row_index: row.rowIndex,
     job_no: getPreviewValue(row, "job_no"),
+    source: getPreviewValue(row, "source"),
     customer: getPreviewValue(row, "customer"),
     phone: getPreviewValue(row, "phone"),
     email: getPreviewValue(row, "email"),

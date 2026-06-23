@@ -15,13 +15,15 @@ import {
   getFormLeadById,
   previewBookedCallLeadReconciliation,
   previewCallLeadEnrichment,
+  searchFormLeads,
   syncBookedCallLeadReconciliation,
   syncCallLeadEnrichment,
   updateFormLead,
 } from "../utils/api";
 import type { ListWorkspaceId } from "../app/state";
 import {
-  isSyncableRow,
+  isDirectFormLeadRowSyncable,
+  isRowSyncable,
   rowToSyncCandidate,
 } from "../workflows/form-leads/payloads";
 import { previewFormLeadRows } from "../workflows/form-leads/preview";
@@ -47,6 +49,7 @@ import type { CallLeadPreviewResponse } from "../workflows/call-leads/types";
 import { sendActiveTabMessage } from "../messaging/tabs";
 import {
   buildCycleSummary,
+  bookedReconciliationRowToCycleDetail,
   callEnrichmentRowToCycleDetail,
   followUpRowToCycleDetail,
   type CycleDetail,
@@ -214,21 +217,37 @@ async function runFormLeadsCycle(
   }
 
   const rows = response.rows;
-  const syncableRows = rows.filter(isSyncableRow);
+  const allowFallback = settings.safety.allowFallbackFormMatches;
+
+  // Always preview with fallback search so cycle history shows recovered and
+  // ambiguous (conflict) matches even when fallback sync is disabled.
+  const previews = await previewFormLeadRows(rows, {
+    getFormLeadById,
+    searchFormLeads,
+  });
+
+  // When fallback is allowed, fallback-recovered rows become syncable;
+  // otherwise only direct Mongo-id rows are syncable (conservative default).
+  const syncableRows = rows.filter((row) =>
+    allowFallback
+      ? isRowSyncable(row, previews.get(row.id))
+      : isDirectFormLeadRowSyncable(row),
+  );
 
   if (settings.safety.previewOnly) {
-    const previews = await previewFormLeadRows(rows, { getFormLeadById });
     const details = rows.map((row) =>
       formLeadPreviewToDetail(row, previews.get(row.id)),
     );
     return {
       status: "ok",
-      message: `Form Leads (preview): ${rows.length} row(s), ${syncableRows.length} syncable — no writes performed.`,
+      message: `Form Leads (preview): ${rows.length} row(s), ${syncableRows.length} syncable${allowFallback ? " (fallback enabled)" : ""} — no writes performed.`,
       details,
     };
   }
 
-  const candidates = syncableRows.map(rowToSyncCandidate);
+  const candidates = syncableRows.map((row) =>
+    rowToSyncCandidate(row, previews.get(row.id)),
+  );
   const resultsById = new Map<string, RowSyncResult>();
   const counts = await syncLeadCandidates(
     candidates,
@@ -238,7 +257,8 @@ async function runFormLeadsCycle(
     },
   );
 
-  const unsyncableRows = rows.filter((row) => !isSyncableRow(row));
+  const syncableIds = new Set(syncableRows.map((row) => row.id));
+  const unsyncableRows = rows.filter((row) => !syncableIds.has(row.id));
   const details: CycleDetail[] = [
     ...syncableRows.map((row) =>
       followUpRowToCycleDetail(row, resultsById.get(row.id)),
@@ -272,11 +292,17 @@ function formLeadPreviewToDetail(
     preview.state === "not_found" || preview.state === "preview_error"
       ? "failed"
       : "skipped";
+  const tag =
+    preview.state === "conflict"
+      ? "[preview · conflict]"
+      : preview.state === "found_by_fallback"
+        ? "[preview · fallback]"
+        : "[preview]";
   return {
     rowId: row.id,
     rowLabel,
     status,
-    message: `[preview] ${preview.message}`,
+    message: `${tag} ${preview.message}`,
   };
 }
 
@@ -335,7 +361,12 @@ async function runCallLeadsCycle(
     return {
       status: "ok",
       message: `Call Leads (preview): ${outcome.enrichmentRows.length} follow-up row(s), ${updateableEnrichment} updateable, ${updateableBooked} booked updateable — no writes performed.`,
-      details: outcome.enrichmentRows.map(callEnrichmentRowToCycleDetail),
+      details: [
+        ...outcome.enrichmentRows.map(callEnrichmentRowToCycleDetail),
+        ...outcome.bookedReconciliationRows.map(
+          bookedReconciliationRowToCycleDetail,
+        ),
+      ],
     };
   }
 
@@ -344,6 +375,10 @@ async function runCallLeadsCycle(
   let unchanged = 0;
   let failed = 0;
   let syncableTotal = 0;
+
+  const runBookedReconciliation =
+    settings.workflows.bookedCallReconciliation ||
+    settings.workflows.callLeadEnrichment;
 
   if (settings.workflows.callLeadEnrichment) {
     const syncable = outcome.enrichmentRows.filter(canSyncCallEnrichmentRow);
@@ -358,10 +393,14 @@ async function runCallLeadsCycle(
       unchanged += counts.unchanged;
       failed += counts.failed;
       details.push(...merged.map(callEnrichmentRowToCycleDetail));
+    } else {
+      details.push(
+        ...outcome.enrichmentRows.map(callEnrichmentRowToCycleDetail),
+      );
     }
   }
 
-  if (settings.workflows.bookedCallReconciliation) {
+  if (runBookedReconciliation) {
     const syncable = outcome.bookedReconciliationRows.filter(
       canSyncBookedCallReconciliationRow,
     );
@@ -370,11 +409,21 @@ async function runCallLeadsCycle(
       const results = await syncBookedCallLeadReconciliation(
         syncable.map((row) => row.payload),
       );
-      mergeBookedReconciliationResults(outcome.bookedReconciliationRows, results);
+      const merged = mergeBookedReconciliationResults(
+        outcome.bookedReconciliationRows,
+        results,
+      );
       const counts = countBookedReconciliationResults(results);
       updated += counts.updated;
       unchanged += counts.unchanged;
       failed += counts.failed;
+      details.push(...merged.map(bookedReconciliationRowToCycleDetail));
+    } else {
+      details.push(
+        ...outcome.bookedReconciliationRows.map(
+          bookedReconciliationRowToCycleDetail,
+        ),
+      );
     }
   }
 

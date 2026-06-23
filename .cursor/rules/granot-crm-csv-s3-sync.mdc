@@ -1,0 +1,15 @@
+---
+description: Granot CRM CSV discovery, fetch, parse, and upload workflow
+globs: src/workflows/csv-sync/**/*.ts,src/parsers/granot/csv*.ts,src/test/csv.test.ts,src/test/parsers.test.ts
+alwaysApply: false
+---
+
+# Granot CRM CSV To S3 Sync
+
+- `src/parsers/granot/csv-links.ts` discovers downloadable CSV links from Granot frames. It classifies `/book_advr*.csv` as `booked` and `/follow_advr*.csv` as `follow_up`, dedupes by normalized `csvKind + href`, and keeps the results sorted.
+- `src/parsers/granot/csv.ts` parses CSV text into normalized headers, `GranotCsvDataRow` records, and `ParsedGranotCsv` counts. A row is kept when it looks like a real Granot row: it has a `job_no`, a valid Mongo `ref_no`, or a phone/customer pair.
+- `fetch.ts` drives the content-script side of the workflow with `DISCOVER_CRM_CSV_LINKS` and `FETCH_CRM_CSV`, plus a simple sequential fetch helper and filename utilities for downloads.
+- `upload.ts` posts fetched snapshots to `POST /api/v1/granot-crm/csv/uploads` using the CRM origin, CSV kind, path, raw text, and parsed counts from the fetch step. The upload result is surfaced as `GranotCsvUploadResult`.
+- `types.ts` defines the snapshot model used by the popup workspace, including fetch/upload state, parsed CSV metadata, and the upload result fields.
+- The tests in `src/test/csv.test.ts` and `src/test/parsers.test.ts` confirm the link classifier, CSV parsing, and row-key behavior.
+

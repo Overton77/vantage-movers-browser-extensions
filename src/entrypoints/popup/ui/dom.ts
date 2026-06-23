@@ -16,6 +16,8 @@ export function getPopupDom() {
     appVersion: el<HTMLSpanElement>("app-version"),
     connChip: el<HTMLSpanElement>("conn-chip"),
     connChipText: el<HTMLSpanElement>("conn-chip-text"),
+    authUser: el<HTMLSpanElement>("auth-user"),
+    authLogout: el<HTMLButtonElement>("auth-logout"),
     openDetached: el<HTMLButtonElement>("open-detached"),
     status: el<HTMLDivElement>("status"),
     statusSpinner: el<HTMLDivElement>("status-spinner"),
@@ -27,6 +29,16 @@ export function getPopupDom() {
 
     // Workspaces
     workspaces: Array.from(document.querySelectorAll<HTMLElement>(".workspace")),
+
+    // Auth
+    auth: {
+      panel: el<HTMLElement>("auth-panel"),
+      form: el<HTMLFormElement>("auth-login-form"),
+      email: el<HTMLInputElement>("auth-email"),
+      password: el<HTMLInputElement>("auth-password"),
+      submit: el<HTMLButtonElement>("auth-submit"),
+      error: el<HTMLDivElement>("auth-error"),
+    },
 
     // Form Leads
     fl: {
@@ -95,6 +107,28 @@ export function getPopupDom() {
       content: el<HTMLDivElement>("current-lead-content"),
     },
 
+    // Binding Estimate Fee
+    bef: {
+      fill: el<HTMLButtonElement>("binding-estimate-fee-fill"),
+      content: el<HTMLDivElement>("binding-estimate-fee-content"),
+    },
+
+    // Search
+    search: {
+      entityFormLeads: el<HTMLButtonElement>("search-entity-form-leads"),
+      entityCallLeads: el<HTMLButtonElement>("search-entity-call-leads"),
+      q: el<HTMLInputElement>("search-q"),
+      sourceCompany: el<HTMLInputElement>("search-source-company"),
+      name: el<HTMLInputElement>("search-name"),
+      email: el<HTMLInputElement>("search-email"),
+      phone: el<HTMLInputElement>("search-phone"),
+      run: el<HTMLButtonElement>("search-run"),
+      clear: el<HTMLButtonElement>("search-clear"),
+      summary: el<HTMLDivElement>("search-summary"),
+      results: el<HTMLDivElement>("search-results"),
+      empty: el<HTMLDivElement>("search-empty"),
+    },
+
     // Automation (background auto-sync)
     auto: {
       badge: el<HTMLSpanElement>("auto-bg-badge"),
@@ -121,6 +155,18 @@ export function getPopupDom() {
     // Debug
     debugDump: el<HTMLButtonElement>("debug-dump"),
     debugResult: el<HTMLParagraphElement>("debug-result"),
+
+    // CRM CSV
+    csv: {
+      discover: el<HTMLButtonElement>("csv-discover"),
+      discoverAndFetch: el<HTMLButtonElement>("csv-discover-fetch"),
+      fetchAll: el<HTMLButtonElement>("csv-fetch-all"),
+      uploadAll: el<HTMLButtonElement>("csv-upload-all"),
+      summary: el<HTMLDivElement>("csv-summary"),
+      links: el<HTMLDivElement>("csv-links"),
+      linksCard: el<HTMLDivElement>("csv-links-card"),
+      empty: el<HTMLDivElement>("csv-empty"),
+    },
 
     // Main scroll container + Back-to-top
     main: document.querySelector<HTMLElement>(".app__main"),

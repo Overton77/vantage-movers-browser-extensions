@@ -5,7 +5,10 @@ import callLeadsPageHtml from "./fixtures/call-leads-page.html?raw";
 import formEditLeadHtml from "./fixtures/form-edit-lead.html?raw";
 import followUpEstimatesHtml from "./fixtures/form-leads-follow-up-estimates.html?raw";
 import { parseCallLeadTables } from "../parsers/granot/call-leads";
-import { parseCurrentFormLead } from "../parsers/granot/form-edit-lead";
+import {
+  applyBindingEstimateFeeFromInitialPrice,
+  parseCurrentFormLead,
+} from "../parsers/granot/form-edit-lead";
 import { parseFormLeadRows } from "../parsers/granot/form-leads";
 
 function parseHtml(html: string): Document {
@@ -138,6 +141,42 @@ describe("parseCurrentFormLead (Form Edit Lead page)", () => {
 
     expect(result.pageFound).toBe(false);
     expect(result.lead).toBeUndefined();
+  });
+});
+
+describe("applyBindingEstimateFeeFromInitialPrice (Forms View)", () => {
+  it('writes "Binding Estimate Fee" and 85% of Initial Price into the first Extra row', () => {
+    const document = parseHtml(formEditLeadHtml);
+    const result = applyBindingEstimateFeeFromInitialPrice(document);
+
+    expect(result.updated).toBe(true);
+    expect(result.initialPrice).toBe("4800.00");
+    expect(result.previousFeeLabel).toBe("");
+    expect(result.previousFeeAmount).toBe("0.00");
+    expect(result.feeAmount).toBe("4080.00");
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="EXTRA1"]')?.value,
+    ).toBe("Binding Estimate Fee");
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="EXTRA1AMT"]')?.value,
+    ).toBe("4080.00");
+  });
+
+  it("overwrites the first Extra row label and amount", () => {
+    const document = parseHtml(
+      '<form name="theForm"><input name="I1TOTAL" value="4800.00" />' +
+        '<input name="EXTRA1" value="Packing Fee" />' +
+        '<input name="EXTRA1AMT" value="25.00" /></form>',
+    );
+    const result = applyBindingEstimateFeeFromInitialPrice(document);
+
+    expect(result.updated).toBe(true);
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="EXTRA1"]')?.value,
+    ).toBe("Binding Estimate Fee");
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="EXTRA1AMT"]')?.value,
+    ).toBe("4080.00");
   });
 });
 

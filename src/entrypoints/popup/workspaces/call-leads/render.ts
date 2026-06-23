@@ -526,7 +526,8 @@ function renderCallLeadsControls(app: AppContext): void {
   dom.cl.log.disabled = isBusy;
   dom.cl.syncBooked.disabled = isBusy || autoRunning || !hasSyncableBookedRows;
   dom.cl.syncSelected.disabled = isBusy || autoRunning || !hasSelectedRows;
-  dom.cl.syncAll.disabled = isBusy || autoRunning || !hasSyncableRows;
+  dom.cl.syncAll.disabled =
+    isBusy || autoRunning || (!hasSyncableRows && !hasSyncableBookedRows);
   dom.cl.selectAll.disabled = isBusy || autoRunning || !hasSyncableRows;
   dom.cl.deselectAll.disabled = isBusy || autoRunning || !hasRows;
   const hasAnyCallRows =
@@ -535,7 +536,8 @@ function renderCallLeadsControls(app: AppContext): void {
   dom.cl.collapseAll.disabled = isBusy || autoRunning || !hasAnyCallRows;
   dom.cl.intervalValue.disabled = autoRunning;
   dom.cl.intervalUnit.disabled = autoRunning;
-  dom.cl.autoStart.disabled = isBusy || autoRunning;
+  dom.cl.autoStart.disabled =
+    isBusy || autoRunning || (!hasSyncableRows && !hasSyncableBookedRows);
   dom.cl.autoStop.disabled = !autoRunning;
 }
 

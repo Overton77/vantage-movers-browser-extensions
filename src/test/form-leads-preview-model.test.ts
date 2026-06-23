@@ -74,6 +74,15 @@ describe("buildFormLeadRowPreview", () => {
     expect(preview.message).toContain("Sync will change");
   });
 
+  it("does not report a cubic_feet change when prior is 0", () => {
+    const preview = buildFormLeadRowPreview(
+      makeRow({ prior: "0", quoted: false, cubicFeet: 200 }),
+      makeLookup({ quoted: true, cubic_feet: 300, booked: null }),
+    );
+    expect(preview.state).toBe("will_update");
+    expect(preview.changes).toEqual(["quoted true → false"]);
+  });
+
   it("renders missing current values as 'missing'", () => {
     const preview = buildFormLeadRowPreview(
       makeRow({ quoted: true, cubicFeet: 300 }),

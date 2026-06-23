@@ -9,6 +9,7 @@ import {
   buildFormLeadUpdatePayload,
   buildUnchangedMessage,
   buildUpdatedMessage,
+  isDuplicateQuarantineLead,
 } from "./payloads";
 import type { LeadSyncCandidate, RowSyncResult, SyncCounts } from "./types";
 
@@ -38,14 +39,28 @@ export async function syncLeadCandidates(
       continue;
     }
 
+    // Use the resolved Vantage `_id` for fallback matches; falls back to the
+    // Granot `refNo` for direct id matches. Never PATCH the Granot refNo string
+    // once a fallback match has resolved a different Vantage id.
+    const targetId = candidate.vantageId ?? candidate.refNo;
+
     try {
-      const current = await context.getFormLeadById(candidate.refNo);
+      const current = await context.getFormLeadById(targetId);
+      if (isDuplicateQuarantineLead(current)) {
+        onResult(candidate.id, {
+          status: "skipped",
+          message:
+            "Skipped duplicate quarantined form lead — sync only applies to the canonical lead.",
+        });
+        continue;
+      }
+
       const updatePayload = buildFormLeadUpdatePayload(candidate, current);
       const syncPayload =
         Object.keys(updatePayload).length > 0
           ? updatePayload
           : buildFormLeadSyncPayload(candidate);
-      await context.updateFormLead(candidate.refNo, syncPayload);
+      await context.updateFormLead(targetId, syncPayload);
 
       if (Object.keys(updatePayload).length === 0) {
         unchanged += 1;

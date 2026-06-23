@@ -1,21 +1,44 @@
 // Builds the pre-sync "preview" model for a Form Lead row by comparing the
 // parsed Granot row against the current Vantage form lead. Pure / UI-free: the
 // popup turns the returned `state` + `message` into badges and copy.
+//
+// Supports two match methods:
+//   - `mongo_id`: the Granot `ref_no` resolved directly to a Vantage lead.
+//   - `phone_and_email`: the lead was recovered by fallback search after the id
+//     lookup failed. These are surfaced as `found_by_fallback` so the UI can
+//     clearly distinguish them and the resolved Vantage `_id` is preserved.
 import type { FormLeadLookup } from "../../utils/api";
-import type { FollowUpRow, FormLeadRowPreview } from "./types";
+import { deriveQuotedFromPrior, isCubicFeetSyncable, isFormLeadPriorSyncable } from "./payloads";
+import type {
+  FollowUpRow,
+  FormLeadMatchMethod,
+  FormLeadRowPreview,
+} from "./types";
 
 export function buildFormLeadRowPreview(
   row: FollowUpRow,
   current: FormLeadLookup,
+  matchMethod: FormLeadMatchMethod = "mongo_id",
 ): FormLeadRowPreview {
+  const isFallback = matchMethod === "phone_and_email";
+  // Fallback rows are marked invalid_ref_no, so `row.quoted` is undefined.
+  // Derive the intended value from `prior` to compute a meaningful diff.
+  const intendedQuoted = isFallback
+    ? deriveQuotedFromPrior(row.prior)
+    : row.quoted;
+
   const hasBooking = Boolean(current.booked);
   const quotedDiffers =
-    typeof row.quoted === "boolean" && current.quoted !== row.quoted;
+    typeof intendedQuoted === "boolean" && current.quoted !== intendedQuoted;
+  // cubic_feet only syncs for prior 1/5, so a prior-0 row never reports a
+  // cubic_feet change even if the parsed value differs from Vantage.
   const cubicDiffers =
-    typeof row.cubicFeet === "number" && current.cubic_feet !== row.cubicFeet;
+    isCubicFeetSyncable(row.prior) &&
+    typeof row.cubicFeet === "number" &&
+    current.cubic_feet !== row.cubicFeet;
   const changes: string[] = [];
   if (quotedDiffers) {
-    changes.push(`quoted ${formatValue(current.quoted)} → ${row.quoted}`);
+    changes.push(`quoted ${formatValue(current.quoted)} → ${intendedQuoted}`);
   }
   if (cubicDiffers) {
     changes.push(
@@ -23,11 +46,34 @@ export function buildFormLeadRowPreview(
     );
   }
 
+  const resolvedVantageId = current._id;
+
+  if (isFallback) {
+    const bookingNote = hasBooking
+      ? ` Booking attached (booking ${String(current.booked)}); the booking link is preserved.`
+      : "";
+    const changeNote =
+      changes.length === 0
+        ? " Sync is idempotent (no fields change)."
+        : ` Sync will change ${changes.join(" and ")}.`;
+    return {
+      state: "found_by_fallback",
+      current,
+      changes,
+      matchMethod,
+      resolvedVantageId,
+      matchCount: 1,
+      message: `No lead found with Granot ref_no, but found by phone and email (Vantage id ${resolvedVantageId}).${bookingNote}${changeNote}`,
+    };
+  }
+
   if (hasBooking) {
     return {
       state: "has_booking",
       current,
       changes,
+      matchMethod,
+      resolvedVantageId,
       message:
         changes.length === 0
           ? `Found form lead by ref_no; it has a booking attached (booking ${String(current.booked)}). Running sync is idempotent (no fields change).`
@@ -40,6 +86,8 @@ export function buildFormLeadRowPreview(
       state: "idempotent",
       current,
       changes,
+      matchMethod,
+      resolvedVantageId,
       message:
         "Found form lead by ref_no. No booking attached and quoted + cubic_feet already match the Granot row — sync is idempotent.",
     };
@@ -49,7 +97,30 @@ export function buildFormLeadRowPreview(
     state: "will_update",
     current,
     changes,
+    matchMethod,
+    resolvedVantageId,
     message: `Found form lead by ref_no. No booking attached. Sync will change ${changes.join(" and ")}.`,
+  };
+}
+
+export function buildConflictResolvedFallbackPreview(
+  row: FollowUpRow,
+  current: FormLeadLookup,
+  matchCount: number,
+  resolutionReason: string,
+): FormLeadRowPreview {
+  const base = buildFormLeadRowPreview(row, current, "phone_and_email");
+  const changeNote = !isFormLeadPriorSyncable(row.prior)
+    ? ` Prior ${row.prior} is not syncable (only 1 and 5 map to quoted), so sync is disabled.`
+    : base.changes.length === 0
+      ? " Sync is idempotent (no fields change)."
+      : ` Sync will change ${base.changes.join(" and ")}.`;
+
+  return {
+    ...base,
+    state: "conflict",
+    matchCount,
+    message: `Ambiguous fallback match: ${matchCount} form leads matched this phone/email. ${resolutionReason} Selected Vantage id ${current._id} for review.${changeNote}`,
   };
 }
 

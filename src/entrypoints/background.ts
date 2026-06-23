@@ -5,6 +5,10 @@ import {
   AUTOMATED_SYNC_SETTINGS_KEY,
   loadAutomatedSyncSettings,
 } from '../auto-sync/settings';
+import {
+  AUTH_SESSION_STORAGE_KEY,
+  readStoredAuthSession,
+} from '../auth/storage';
 import { log } from '../utils/logger';
 
 /** Named alarm that drives unattended background Scan-and-Sync (Unit 08). */
@@ -17,6 +21,12 @@ const AUTO_SYNC_ALARM = 'granot-sync:auto-sync';
  */
 async function reconcileAutoSyncAlarm(): Promise<void> {
   try {
+    if (!(await hasOwnerSession())) {
+      await browser.alarms.clear(AUTO_SYNC_ALARM);
+      log('Auto-sync alarm cleared (owner session required)');
+      return;
+    }
+
     const settings = await loadAutomatedSyncSettings();
     if (settings.enabled) {
       await browser.alarms.create(AUTO_SYNC_ALARM, {
@@ -31,6 +41,11 @@ async function reconcileAutoSyncAlarm(): Promise<void> {
   } catch (err) {
     log('Failed to reconcile auto-sync alarm:', err);
   }
+}
+
+async function hasOwnerSession(): Promise<boolean> {
+  const session = await readStoredAuthSession();
+  return session?.user.role === 'owner';
 }
 
 export default defineBackground(() => {
@@ -48,14 +63,23 @@ export default defineBackground(() => {
 
   // Keep the schedule in sync with settings changes made from the popup.
   browser.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && AUTOMATED_SYNC_SETTINGS_KEY in changes) {
+    if (
+      area === 'local' &&
+      (AUTOMATED_SYNC_SETTINGS_KEY in changes || AUTH_SESSION_STORAGE_KEY in changes)
+    ) {
       void reconcileAutoSyncAlarm();
     }
   });
 
   browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === AUTO_SYNC_ALARM) {
-      void runBackgroundAutoSync();
+      void hasOwnerSession().then(async (isOwner) => {
+        if (isOwner) {
+          await runBackgroundAutoSync();
+          return;
+        }
+        await browser.alarms.clear(AUTO_SYNC_ALARM);
+      });
     }
   });
 

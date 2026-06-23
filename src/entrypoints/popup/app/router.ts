@@ -2,6 +2,7 @@
 // workspace `is-active` classes, resets the scroll position, and persists the
 // choice. Extracted from `popup/main.ts` in Unit 07.
 import type { WorkspaceId } from "../../../app/state";
+import { canAccessWorkspace, defaultWorkspaceForSession } from "../../../auth/gate";
 import type { AppContext } from "./context";
 import { savePersistedState } from "./persistence";
 
@@ -11,6 +12,9 @@ export function setActiveWorkspace(
   options?: { persist?: boolean },
 ): void {
   const { dom, state } = app;
+  if (!canAccessWorkspace(state.auth.session, workspace)) {
+    workspace = defaultWorkspaceForSession(state.auth.session);
+  }
   state.activeWorkspace = workspace;
   for (const tab of dom.sidebarTabs) {
     tab.classList.toggle("is-active", tab.dataset.workspace === workspace);

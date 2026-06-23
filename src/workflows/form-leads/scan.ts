@@ -2,7 +2,7 @@
 // content script (via an injected sender) and returns plain data: the parsed
 // response plus the row ids that should be selected by default. The popup keeps
 // ownership of status, busy state, rendering, and the follow-up preview pass.
-import { isSyncableRow } from "./payloads";
+import { isDirectFormLeadRowSyncable } from "./payloads";
 import type { ParseResponse } from "./types";
 
 export type FormLeadsScanContext = {
@@ -21,7 +21,7 @@ export async function scanFollowUpRows(
 ): Promise<FormLeadsScanResult> {
   const response = await context.sendParseMessage();
   const syncableRowIds = response.rows
-    .filter(isSyncableRow)
+    .filter(isDirectFormLeadRowSyncable)
     .map((row) => row.id);
   return { response, syncableRowIds };
 }

@@ -8,6 +8,9 @@ export function createInitialState(): AppState {
   return {
     activeWorkspace: "form-leads",
     isBusy: false,
+    auth: {
+      loading: true,
+    },
     formLeads: {
       parsedRows: [],
       selectedRowIds: new Set(),
@@ -41,9 +44,31 @@ export function createInitialState(): AppState {
     formEditLead: {
       override: "parsed",
     },
+    bindingEstimateFee: {},
+    search: {
+      entity: "form-leads",
+      query: {
+        q: "",
+        source_company: "",
+        name: "",
+        email: "",
+        phone_number: "",
+      },
+      loading: false,
+      formResults: [],
+      callResults: [],
+      count: 0,
+      hasSearched: false,
+    },
     automation: {
       cycles: [],
       loaded: false,
+    },
+    csv: {
+      discoveredLinks: [],
+      files: [],
+      hasDiscovered: false,
+      openFileIds: new Set(),
     },
   };
 }

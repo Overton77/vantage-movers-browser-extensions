@@ -5,7 +5,8 @@
 // workspace actions module.
 import { formatIntervalLabel } from "../../../../auto-sync/cycles";
 import {
-  isSyncableRow,
+  isFormLeadPriorSyncable,
+  isRowSyncable,
 } from "../../../../workflows/form-leads/payloads";
 import type {
   FollowUpRow,
@@ -42,7 +43,9 @@ function renderFormLeadsSummary(app: AppContext): void {
     dom.fl.summary.textContent = "";
     return;
   }
-  const syncableRows = fl.parsedRows.filter(isSyncableRow);
+  const syncableRows = fl.parsedRows.filter((row) =>
+    isRowSyncable(row, fl.previews.get(row.id)),
+  );
   const syncable = syncableRows.length;
   const unsupported = fl.parsedRows.filter(
     (row) => row.status === "unsupported_prior",
@@ -60,22 +63,23 @@ function renderFormLeadsSummary(app: AppContext): void {
       has_booking: 0,
       idempotent: 0,
       will_update: 0,
+      found_by_fallback: 0,
+      conflict: 0,
       not_found: 0,
       preview_error: 0,
       pending: 0,
     };
-    for (const row of syncableRows) {
-      const preview = fl.previews.get(row.id);
-      if (preview) {
-        states[preview.state] += 1;
-      } else {
-        states.pending += 1;
-      }
+    for (const preview of fl.previews.values()) {
+      states[preview.state] += 1;
     }
     const parts = [
       states.has_booking > 0 ? `${states.has_booking} with booking` : "",
       states.idempotent > 0 ? `${states.idempotent} already match` : "",
       states.will_update > 0 ? `${states.will_update} will update` : "",
+      states.found_by_fallback > 0
+        ? `${states.found_by_fallback} found by fallback`
+        : "",
+      states.conflict > 0 ? `${states.conflict} conflict(s)` : "",
       states.not_found > 0 ? `${states.not_found} not found` : "",
       states.preview_error > 0
         ? `${states.preview_error} preview error(s)`
@@ -125,7 +129,9 @@ function renderFormLeadsRows(app: AppContext): void {
     shouldShowFollowUpRow(app, row),
   );
 
-  const syncableCount = fl.parsedRows.filter(isSyncableRow).length;
+  const syncableCount = fl.parsedRows.filter((row) =>
+    isRowSyncable(row, fl.previews.get(row.id)),
+  ).length;
   const bookedCount = fl.parsedRows.filter(
     (row) => row.tableSource === "bookedJobs",
   ).length;
@@ -162,9 +168,9 @@ function buildFormLeadRowElement(
   row: FollowUpRow,
 ): HTMLDetailsElement {
   const fl = app.state.formLeads;
-  const syncable = isSyncableRow(row);
   const result = fl.syncResults.get(row.id);
   const preview = fl.previews.get(row.id);
+  const syncable = isRowSyncable(row, preview);
 
   const details = document.createElement("details");
   details.className = `row ${syncable ? "" : "unsyncable"}`;
@@ -210,12 +216,12 @@ function buildFormLeadRowElement(
   for (const chip of buildFormLeadCompactChips(row)) {
     compact.append(chip);
   }
-  if (syncable && preview) {
-    compact.append(buildFormLeadMatchChip(preview));
+  if (preview) {
+    compact.append(buildFormLeadMatchChip(row, preview, syncable));
   }
   summary.append(compact);
 
-  summary.append(statusBadge(row));
+  summary.append(formLeadStatusBadge(row, preview));
   if (result) {
     summary.append(resultBadge(result));
   }
@@ -241,7 +247,7 @@ function buildFormLeadRowElement(
   const body = document.createElement("div");
   body.className = "row__body";
 
-  if (syncable && preview) {
+  if (preview) {
     body.append(buildFormLeadPreviewBlock(preview));
   }
 
@@ -266,6 +272,23 @@ function buildFormLeadRowElement(
   return details;
 }
 
+function formLeadStatusBadge(
+  row: FollowUpRow,
+  preview?: FormLeadRowPreview,
+): HTMLSpanElement {
+  if (
+    row.status === "syncable" &&
+    !isFormLeadPriorSyncable(row.prior) &&
+    !isRowSyncable(row, preview)
+  ) {
+    const badge = document.createElement("span");
+    badge.className = "badge muted";
+    badge.textContent = "not quoted";
+    return badge;
+  }
+  return statusBadge(row);
+}
+
 function buildFormLeadCompactChips(row: FollowUpRow): HTMLSpanElement[] {
   const chips: HTMLSpanElement[] = [];
   if (row.jobNo) chips.push(compactChip("job_no", row.jobNo));
@@ -280,7 +303,11 @@ function buildFormLeadCompactChips(row: FollowUpRow): HTMLSpanElement[] {
   return chips;
 }
 
-function buildFormLeadMatchChip(preview: FormLeadRowPreview): HTMLSpanElement {
+function buildFormLeadMatchChip(
+  row: FollowUpRow,
+  preview: FormLeadRowPreview,
+  syncable: boolean,
+): HTMLSpanElement {
   const chip = document.createElement("span");
   switch (preview.state) {
     case "has_booking":
@@ -295,6 +322,30 @@ function buildFormLeadMatchChip(preview: FormLeadRowPreview): HTMLSpanElement {
       chip.className = "match-chip is-changes";
       chip.textContent = `found · will update ${preview.changes.length} field${preview.changes.length === 1 ? "" : "s"}`;
       break;
+    case "found_by_fallback": {
+      chip.className = preview.current?.booked
+        ? "match-chip is-booking"
+        : "match-chip is-changes";
+      const bookingNote = preview.current?.booked ? " · has booking" : "";
+      chip.textContent =
+        preview.changes.length === 0
+          ? `fallback · idempotent${bookingNote}`
+          : `fallback · will update ${preview.changes.length} field${preview.changes.length === 1 ? "" : "s"}${bookingNote}`;
+      break;
+    }
+    case "conflict": {
+      if (preview.resolvedVantageId && syncable) {
+        chip.className = "match-chip is-changes";
+        chip.textContent = `conflict · ${preview.matchCount ?? "multiple"} matches · syncable`;
+      } else if (preview.resolvedVantageId) {
+        chip.className = "match-chip is-missing";
+        chip.textContent = `conflict · ${preview.matchCount ?? "multiple"} matches · resolved`;
+      } else {
+        chip.className = "match-chip is-missing";
+        chip.textContent = `conflict · ${preview.matchCount ?? "multiple"} matches`;
+      }
+      break;
+    }
     case "not_found":
       chip.className = "match-chip is-missing";
       chip.textContent = "not found in Vantage";
@@ -319,7 +370,11 @@ function buildFormLeadPreviewBlock(
   wrapper.className =
     preview.state === "not_found" || preview.state === "preview_error"
       ? "banner error"
-      : preview.state === "will_update"
+      : preview.state === "conflict" && !preview.resolvedVantageId
+        ? "banner error"
+      : preview.state === "will_update" ||
+          preview.state === "found_by_fallback" ||
+          preview.state === "conflict"
         ? "banner warn"
         : "banner info";
   wrapper.style.marginBottom = "10px";
@@ -370,7 +425,9 @@ function renderFormLeadsControls(app: AppContext): void {
   const isBusy = app.state.isBusy;
   const autoRunning = fl.autoRunning;
   const hasRows = fl.parsedRows.length > 0;
-  const hasSyncableRows = fl.parsedRows.some(isSyncableRow);
+  const hasSyncableRows = fl.parsedRows.some((row) =>
+    isRowSyncable(row, fl.previews.get(row.id)),
+  );
   const hasSelectedRows = fl.parsedRows.some((row) =>
     fl.selectedRowIds.has(row.id),
   );
@@ -467,7 +524,7 @@ export function shouldShowFollowUpRow(
 ): boolean {
   const filter = app.state.formLeads.progressFilter;
   if (filter === "syncable") {
-    return isSyncableRow(row);
+    return isRowSyncable(row, app.state.formLeads.previews.get(row.id));
   }
   if (filter === "failed") {
     return app.state.formLeads.syncResults.get(row.id)?.status === "failed";

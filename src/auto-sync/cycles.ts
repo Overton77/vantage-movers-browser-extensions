@@ -7,7 +7,10 @@ import type { IntervalUnit, ListWorkspaceId } from "../app/state";
 import type { SyncCounts } from "../workflows/form-leads/types";
 
 export { followUpRowToCycleDetail } from "../workflows/form-leads/cycles";
-export { callEnrichmentRowToCycleDetail } from "../workflows/call-leads/cycles";
+export {
+  bookedReconciliationRowToCycleDetail,
+  callEnrichmentRowToCycleDetail,
+} from "../workflows/call-leads/cycles";
 
 export type CycleDetail = {
   rowId: string;

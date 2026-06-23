@@ -5,9 +5,14 @@ import {
   type CallLeadPreviewResult,
 } from "../parsers/granot/call-leads";
 import {
+  applyBindingEstimateFeeFromInitialPrice,
   parseCurrentFormLead,
+  type BindingEstimateFeeApplyResult,
   type CurrentFormLeadParseResult,
 } from "../parsers/granot/form-edit-lead";
+import { classifyCsvHref, discoverGranotCsvLinks } from "../parsers/granot/csv-links";
+import { parseGranotCsv } from "../parsers/granot/csv";
+import type { GranotCsvLink } from "../parsers/granot/csv-types";
 import { parseFormLeadRows, type ParseResult } from "../parsers/granot/form-leads";
 import { getSearchDocuments, logPageAndTables } from "../utils/page-scraper";
 import { error as logError, log } from "../utils/logger";
@@ -53,8 +58,31 @@ export default defineContentScript({
           return true;
         }
 
+        if (message?.type === "APPLY_BINDING_ESTIMATE_FEE") {
+          sendResponse(applyBindingEstimateFeeInCurrentDocument());
+          return true;
+        }
+
         if (message?.type === "PARSE_CALL_LEAD_TABLES") {
           sendResponse(parseCallLeadTablesFromSearchDocuments());
+          return true;
+        }
+
+        if (message?.type === "DISCOVER_CRM_CSV_LINKS") {
+          sendResponse(discoverCsvLinksFromSearchDocuments());
+          return true;
+        }
+
+        if (message?.type === "FETCH_CRM_CSV") {
+          void fetchCrmCsv(String(message.href ?? ""))
+            .then(sendResponse)
+            .catch((err) => {
+              sendResponse({
+                ok: false,
+                href: String(message.href ?? ""),
+                error: err instanceof Error ? err.message : String(err),
+              });
+            });
           return true;
         }
       } catch (err) {
@@ -163,6 +191,80 @@ function parseCurrentFormLeadFromSearchDocuments(): CurrentFormLeadParseResult {
     "No current form lead edit page found in page or accessible frames:",
     result,
   );
+  return result;
+}
+
+function applyBindingEstimateFeeInCurrentDocument(): BindingEstimateFeeApplyResult {
+  const result = applyBindingEstimateFeeFromInitialPrice(document);
+  log("Applied Binding Estimate Fee helper:", result);
+  return result;
+}
+
+function discoverCsvLinksFromSearchDocuments() {
+  const links = new Map<string, GranotCsvLink>();
+
+  for (const searchDocument of getSearchDocuments()) {
+    for (const link of discoverGranotCsvLinks(
+      searchDocument.document,
+      searchDocument.frameUrl,
+    )) {
+      links.set(`${link.csvKind}:${link.href}`, link);
+    }
+  }
+
+  const discovered = [...links.values()];
+  const result = {
+    ok: true,
+    links: discovered,
+    crmOrigin: window.location.origin,
+  };
+  log("Discovered Granot CRM CSV links:", result);
+  return result;
+}
+
+async function fetchCrmCsv(href: string) {
+  const trimmedHref = href.trim();
+  if (!trimmedHref) {
+    return {
+      ok: false,
+      href: trimmedHref,
+      error: "Missing CSV href.",
+    };
+  }
+
+  const csvKind = classifyCsvHref(trimmedHref);
+  const url = new URL(trimmedHref, window.location.origin).href;
+  log("Fetching Granot CRM CSV:", url);
+
+  const response = await fetch(url, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      href: trimmedHref,
+      error: `HTTP ${response.status} ${response.statusText}`,
+      frameUrl: window.location.href,
+    };
+  }
+
+  const csvText = await response.text();
+  const parsed = parseGranotCsv(csvText, csvKind);
+  const result = {
+    href: trimmedHref,
+    csvKind,
+    csvText,
+    byteLength: new TextEncoder().encode(csvText).length,
+    frameUrl: window.location.href,
+    ...parsed,
+  };
+  log("Fetched Granot CRM CSV:", {
+    href: trimmedHref,
+    byteLength: result.byteLength,
+    counts: parsed.counts,
+  });
   return result;
 }
 

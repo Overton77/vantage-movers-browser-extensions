@@ -66,9 +66,17 @@ export type CurrentFormLeadParseResponse = {
 export type LeadSyncCandidate = {
   id: string;
   refNo: string;
+  /** Granot `prior` value; used to suppress placeholder est_cf when prior is 0. */
+  prior?: string;
   quoted?: boolean;
   cubicFeet?: number;
   status: LeadStatus;
+  /**
+   * Resolved Vantage form lead `_id` to PATCH. For direct id matches this is
+   * the Granot `refNo`; for fallback (phone/email) matches it is the Vantage
+   * `_id` returned by search, which must never be the Granot `refNo` string.
+   */
+  vantageId?: string;
 };
 
 export type CurrentLeadPreview = {
@@ -95,9 +103,19 @@ export type FormLeadMatchState =
   | "has_booking"
   | "idempotent"
   | "will_update"
+  | "found_by_fallback"
+  | "conflict"
   | "not_found"
   | "preview_error"
   | "pending";
+
+/**
+ * How a Vantage form lead was located for a Granot row.
+ * - `mongo_id`: the Granot `ref_no` resolved directly via `GET /form-leads/:id`.
+ * - `phone_and_email`: recovered by `POST /form-leads/search` using fallback fields.
+ * - `none`: no match (or not yet resolved).
+ */
+export type FormLeadMatchMethod = "mongo_id" | "phone_and_email" | "none";
 
 export type FormLeadRowPreview = {
   state: FormLeadMatchState;
@@ -105,6 +123,12 @@ export type FormLeadRowPreview = {
   changes: string[];
   message: string;
   error?: string;
+  /** How the lead was located, when one was found. */
+  matchMethod?: FormLeadMatchMethod;
+  /** Vantage `_id` to patch when synced (the resolved id, not the Granot refNo). */
+  resolvedVantageId?: string;
+  /** Number of fallback candidates the server returned (used to detect conflicts). */
+  matchCount?: number;
 };
 
 export type SyncCounts = {

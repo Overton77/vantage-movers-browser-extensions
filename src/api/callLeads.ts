@@ -6,7 +6,9 @@ export type CallLeadEnrichmentRowPayload = {
   row_id: string;
   row_index?: number;
   job_no?: string;
+  source?: string;
   customer?: string;
+  /** Granot CRM phone — used for server-side matching only; never overwrites CallLead.phone_number. */
   phone?: string;
   email?: string;
   from_zip?: string;
@@ -23,6 +25,7 @@ export type BookedCallLeadReconciliationRowPayload = {
   prior?: string;
   book_date?: string;
   customer?: string;
+  /** Granot CRM phone — used for server-side matching only; never overwrites CallLead.phone_number. */
   phone?: string;
   email?: string;
   from_zip?: string;

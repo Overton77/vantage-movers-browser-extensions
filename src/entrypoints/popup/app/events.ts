@@ -1,7 +1,7 @@
 // Centralized popup event wiring. Binds every sidebar, top-bar, and workspace
 // control to the workspace actions/renders. Bound once at boot so handlers are
 // never duplicated across re-renders. Extracted from `popup/main.ts` in Unit 07.
-import { isSyncableRow } from "../../../workflows/form-leads/payloads";
+import { isRowSyncable } from "../../../workflows/form-leads/payloads";
 import {
   canSyncBookedCallReconciliationRow,
   canSyncCallEnrichmentRow,
@@ -10,6 +10,8 @@ import {
   AUTOMATED_SYNC_SETTINGS_KEY,
 } from "../../../auto-sync/settings";
 import { AUTOMATED_SYNC_CYCLES_KEY } from "../../../auto-sync/storage";
+import { defaultWorkspaceForSession } from "../../../auth/gate";
+import { signIn, signOut } from "../../../auth/session";
 import { startAutoScanAndSync, stopAutoScanAndSync } from "./auto-sync";
 import type { AppContext } from "./context";
 import {
@@ -27,6 +29,8 @@ import {
 } from "./persistence";
 import { setActiveWorkspace } from "./router";
 import { openDetached } from "./shell";
+import { renderAll } from "./render";
+import { fillBindingEstimateFee } from "../workspaces/binding-estimate-fee/actions";
 import {
   openCallLeadsLogTables,
   scanCallLeadsPreview,
@@ -44,8 +48,23 @@ import {
   syncRows,
 } from "../workspaces/form-leads/actions";
 import { renderFormLeads } from "../workspaces/form-leads/render";
+import {
+  clearSearch,
+  runSearch,
+  setSearchEntity,
+} from "../workspaces/search/actions";
 import { runAndRenderDiagnostics } from "../workspaces/diagnostics/render";
 import { runDebugDumpTables } from "../workspaces/debug/render";
+import {
+  discoverAndFetchAllCsv,
+  discoverCsvLinks,
+  downloadCsvSnapshot,
+  fetchAllCsvFiles,
+  fetchCsvFile,
+  toggleCsvFileOpen,
+  uploadAllReadyCsvFiles,
+  uploadCsvFile,
+} from "../workspaces/csv/actions";
 
 export function attachEventHandlers(app: AppContext): void {
   const { dom, state } = app;
@@ -62,6 +81,14 @@ export function attachEventHandlers(app: AppContext): void {
 
   // Top bar
   dom.openDetached.addEventListener("click", () => void openDetached(app));
+  dom.authLogout.addEventListener("click", () => {
+    void handleLogout(app);
+  });
+
+  dom.auth.form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void handleLogin(app);
+  });
 
   // Form Leads
   dom.fl.scan.addEventListener("click", () => {
@@ -79,11 +106,18 @@ export function attachEventHandlers(app: AppContext): void {
     );
   });
   dom.fl.syncAll.addEventListener("click", () => {
-    void syncRows(app, state.formLeads.parsedRows.filter(isSyncableRow));
+    void syncRows(
+      app,
+      state.formLeads.parsedRows.filter((row) =>
+        isRowSyncable(row, state.formLeads.previews.get(row.id)),
+      ),
+    );
   });
   dom.fl.selectAll.addEventListener("click", () => {
     state.formLeads.selectedRowIds = new Set(
-      state.formLeads.parsedRows.filter(isSyncableRow).map((row) => row.id),
+      state.formLeads.parsedRows
+        .filter((row) => isRowSyncable(row, state.formLeads.previews.get(row.id)))
+        .map((row) => row.id),
     );
     renderFormLeads(app);
   });
@@ -152,12 +186,21 @@ export function attachEventHandlers(app: AppContext): void {
     );
   });
   dom.cl.syncAll.addEventListener("click", () => {
-    void syncCallRows(
-      app,
-      state.callLeads.enrichmentRows
+    void (async () => {
+      const enrichmentPayloads = state.callLeads.enrichmentRows
         .filter(canSyncCallEnrichmentRow)
-        .map((row) => row.payload),
-    );
+        .map((row) => row.payload);
+      const bookedPayloads = state.callLeads.bookedReconciliationRows
+        .filter(canSyncBookedCallReconciliationRow)
+        .map((row) => row.payload);
+
+      if (enrichmentPayloads.length > 0) {
+        await syncCallRows(app, enrichmentPayloads);
+      }
+      if (bookedPayloads.length > 0) {
+        await syncBookedCallRows(app, bookedPayloads);
+      }
+    })();
   });
   dom.cl.selectAll.addEventListener("click", () => {
     state.callLeads.selectedRowIds = new Set(
@@ -221,6 +264,45 @@ export function attachEventHandlers(app: AppContext): void {
     void syncCurrentLead(app);
   });
 
+  // Binding Estimate Fee
+  dom.bef.fill.addEventListener("click", () => {
+    void fillBindingEstimateFee(app);
+  });
+
+  // Search
+  dom.search.entityFormLeads.addEventListener("click", () => {
+    setSearchEntity(app, "form-leads");
+  });
+  dom.search.entityCallLeads.addEventListener("click", () => {
+    setSearchEntity(app, "call-leads");
+  });
+  dom.search.run.addEventListener("click", () => void runSearch(app));
+  dom.search.clear.addEventListener("click", () => clearSearch(app));
+  for (const input of [
+    dom.search.q,
+    dom.search.sourceCompany,
+    dom.search.name,
+    dom.search.email,
+    dom.search.phone,
+  ]) {
+    input.addEventListener("input", () => {
+      state.search.query = {
+        q: dom.search.q.value,
+        source_company: dom.search.sourceCompany.value,
+        name: dom.search.name.value,
+        email: dom.search.email.value,
+        phone_number: dom.search.phone.value,
+      };
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void savePersistedState(state);
+        void runSearch(app);
+      }
+    });
+  }
+
   // Automation (background auto-sync)
   for (const control of [
     dom.auto.enabled,
@@ -266,7 +348,82 @@ export function attachEventHandlers(app: AppContext): void {
     void runDebugDumpTables(app);
   });
 
+  // CRM CSV
+  dom.csv.discover.addEventListener("click", () => {
+    void discoverCsvLinks(app);
+  });
+  dom.csv.discoverAndFetch.addEventListener("click", () => {
+    void discoverAndFetchAllCsv(app);
+  });
+  dom.csv.fetchAll.addEventListener("click", () => {
+    void fetchAllCsvFiles(app);
+  });
+  dom.csv.uploadAll.addEventListener("click", () => {
+    void uploadAllReadyCsvFiles(app);
+  });
+  dom.csv.links.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    const button = target.closest<HTMLButtonElement>("[data-csv-action]");
+    if (!button?.dataset.fileId) {
+      return;
+    }
+    const fileId = button.dataset.fileId;
+    if (button.dataset.csvAction === "fetch") {
+      void fetchCsvFile(app, fileId);
+      return;
+    }
+    if (button.dataset.csvAction === "download") {
+      downloadCsvSnapshot(app, fileId);
+      return;
+    }
+    if (button.dataset.csvAction === "upload") {
+      void uploadCsvFile(app, fileId);
+    }
+  });
+  dom.csv.links.addEventListener("toggle", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLDetailsElement) || !target.dataset.fileId) {
+      return;
+    }
+    toggleCsvFileOpen(app, target.dataset.fileId, target.open);
+  }, true);
+
   attachBackToTop(app);
+}
+
+async function handleLogin(app: AppContext): Promise<void> {
+  const { dom, state } = app;
+  state.auth.loading = true;
+  state.auth.error = undefined;
+  renderAll(app);
+
+  try {
+    const session = await signIn(dom.auth.email.value, dom.auth.password.value);
+    state.auth.session = session;
+    state.auth.loading = false;
+    state.auth.error = undefined;
+    dom.auth.password.value = "";
+    setActiveWorkspace(app, defaultWorkspaceForSession(session), { persist: false });
+    renderAll(app);
+  } catch (error) {
+    state.auth.session = undefined;
+    state.auth.loading = false;
+    state.auth.error = error instanceof Error ? error.message : String(error);
+    renderAll(app);
+  }
+}
+
+async function handleLogout(app: AppContext): Promise<void> {
+  app.state.auth.loading = true;
+  renderAll(app);
+  await signOut();
+  app.state.auth.session = undefined;
+  app.state.auth.loading = false;
+  app.state.auth.error = undefined;
+  renderAll(app);
 }
 
 /**

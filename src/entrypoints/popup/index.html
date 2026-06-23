@@ -97,6 +97,26 @@
         background: #ef4444;
         box-shadow: 0 0 0 3px rgb(239 68 68 / 0.18);
       }
+      .auth-user {
+        font-size: 11px;
+        color: #cbd5e1;
+      }
+      .auth-panel {
+        max-width: 420px;
+        margin: 48px auto;
+      }
+      .auth-panel form {
+        display: grid;
+        gap: 10px;
+      }
+      .auth-panel label {
+        display: grid;
+        gap: 5px;
+        white-space: normal;
+      }
+      .auth-panel input {
+        width: 100%;
+      }
 
       .app__side {
         grid-area: side;
@@ -1117,6 +1137,10 @@
             <span class="conn-chip__dot"></span>
             <span id="conn-chip-text">checking tab…</span>
           </span>
+          <span id="auth-user" class="auth-user" hidden></span>
+          <button id="auth-logout" class="btn-secondary btn-sm" type="button" hidden>
+            Sign out
+          </button>
           <button id="open-detached" class="btn-secondary btn-sm" type="button">
             ⤢ Movable Window
           </button>
@@ -1134,12 +1158,21 @@
           </button>
           <button
             class="sidebar-tab"
+            data-role="owner"
             data-workspace="form-edit-lead"
             type="button"
           >
             <span class="sidebar-tab__icon">✏️</span>
-            <span class="sidebar-tab__label">Form Edit Lead</span>
+            <span class="sidebar-tab__label">Forms View</span>
             <span class="sidebar-tab__pulse" aria-hidden="true"></span>
+          </button>
+          <button
+            class="sidebar-tab"
+            data-workspace="binding-estimate-fee"
+            type="button"
+          >
+            <span class="sidebar-tab__icon">💵</span>
+            <span class="sidebar-tab__label">Binding Fee</span>
           </button>
           <button class="sidebar-tab" data-workspace="call-leads" type="button">
             <span class="sidebar-tab__icon">📞</span>
@@ -1149,6 +1182,14 @@
         </div>
         <div class="sidebar-group">
           <div class="sidebar-group__label">Tools</div>
+          <button class="sidebar-tab" data-workspace="search" type="button">
+            <span class="sidebar-tab__icon">🔍</span>
+            <span class="sidebar-tab__label">Search</span>
+          </button>
+          <button class="sidebar-tab" data-workspace="csv" type="button">
+            <span class="sidebar-tab__icon">📥</span>
+            <span class="sidebar-tab__label">CRM CSV</span>
+          </button>
           <button class="sidebar-tab" data-workspace="automation" type="button">
             <span class="sidebar-tab__icon">🤖</span>
             <span class="sidebar-tab__label">Automation</span>
@@ -1167,6 +1208,33 @@
 
       <!-- ===== MAIN ===== -->
       <main class="app__main">
+        <section id="auth-panel" class="auth-panel" hidden>
+          <div class="card">
+            <h2 style="margin-top: 0">Sign in to Granot Sync</h2>
+            <p class="status-text">
+              Use your Vantage extension account to unlock owner tools or the
+              Binding Estimate Fee workspace.
+            </p>
+            <form id="auth-login-form">
+              <label>
+                Email
+                <input id="auth-email" type="email" autocomplete="email" required />
+              </label>
+              <label>
+                Password
+                <input
+                  id="auth-password"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                />
+              </label>
+              <button id="auth-submit" type="submit">Sign in</button>
+            </form>
+            <div id="auth-error" class="banner error" style="display: none"></div>
+          </div>
+        </section>
+
         <!-- WORKSPACE: Form Leads (Table) -->
         <section
           id="ws-form-leads"
@@ -1393,11 +1461,11 @@
         >
           <div class="workspace__header">
             <div>
-              <h2>Form Edit Lead — Quoted Override</h2>
+              <h2>Forms View</h2>
               <p>
-                Use this on the Granot <em>Edit Form Lead</em> page to PATCH a
-                single Form Lead's <code>quoted</code> value. Read the current
-                vs. target values below, optionally override, then sync.
+                Use this on the Granot <em>Edit Form Lead</em> page to update
+                fields on the visible form and PATCH a single Form Lead's
+                <code>quoted</code> value when needed.
               </p>
             </div>
           </div>
@@ -1415,6 +1483,35 @@
           </div>
 
           <div id="current-lead-content"></div>
+        </section>
+
+        <!-- WORKSPACE: Binding Estimate Fee -->
+        <section
+          id="ws-binding-estimate-fee"
+          class="workspace"
+          data-workspace="binding-estimate-fee"
+        >
+          <div class="workspace__header">
+            <div>
+              <h2>Binding Estimate Fee</h2>
+              <p>
+                Use this on the Granot <em>Edit Form Lead</em> page to read
+                Initial Price and write 85% into the Binding Estimate Fee row.
+                This tool stays client-side and does not call Vantage data APIs.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">Actions</h3>
+            <div class="btn-row">
+              <button id="binding-estimate-fee-fill" type="button">
+                Fill Binding Estimate Fee
+              </button>
+            </div>
+          </div>
+
+          <div id="binding-estimate-fee-content"></div>
         </section>
 
         <!-- WORKSPACE: Call Leads (Table) -->
@@ -1756,6 +1853,133 @@
                 No background cycles recorded yet.
               </p>
             </div>
+          </div>
+        </section>
+
+        <!-- WORKSPACE: Search -->
+        <section id="ws-search" class="workspace" data-workspace="search">
+          <div class="workspace__header">
+            <div>
+              <h2>Search Vantage</h2>
+              <p>
+                Browse Vantage form leads and call leads directly — no Granot
+                scan required. Filter by source company, or use full-text to
+                match name, email, phone, or job/ref. Each result shows whether
+                the lead has a booking or cancellation attached. Leave all
+                fields blank to list the most recent leads.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">Lead Type</h3>
+            <div class="btn-row" id="search-entity-tabs">
+              <button id="search-entity-form-leads" type="button">
+                Form Leads
+              </button>
+              <button
+                id="search-entity-call-leads"
+                class="btn-secondary"
+                type="button"
+              >
+                Call Leads
+              </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">Filters</h3>
+            <div class="btn-row">
+              <label
+                >Search
+                <input
+                  id="search-q"
+                  type="search"
+                  placeholder="name, email, phone, job/ref…"
+                  style="width: 220px"
+                />
+              </label>
+              <label
+                >Source company
+                <input
+                  id="search-source-company"
+                  type="text"
+                  placeholder="e.g. Get Movers"
+                />
+              </label>
+            </div>
+            <div class="btn-row">
+              <label
+                >Name
+                <input id="search-name" type="text" />
+              </label>
+              <label
+                >Email
+                <input id="search-email" type="text" />
+              </label>
+              <label
+                >Phone
+                <input id="search-phone" type="text" />
+              </label>
+            </div>
+            <div class="btn-row">
+              <button id="search-run" type="button">Search</button>
+              <button id="search-clear" class="btn-secondary" type="button">
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div id="search-summary" class="summary" hidden></div>
+          <div id="search-results" class="row-list"></div>
+          <div id="search-empty" class="empty-state">
+            <strong>No search yet</strong>Pick a lead type, set any filters, and
+            click Search. Leave filters blank to list the latest leads.
+          </div>
+        </section>
+
+        <!-- WORKSPACE: CRM CSV -->
+        <section id="ws-csv" class="workspace" data-workspace="csv">
+          <div class="workspace__header">
+            <div>
+              <h2>CRM CSV — Fetch &amp; Parse</h2>
+              <p>
+                Discover Granot <em>Download Booked to CSV</em> and
+                <em>Download Follow Up to CSV</em> links on the active tab,
+                fetch them with your Granot session cookies, parse the rows, and
+                optionally download the raw files locally. This is the first step
+                toward server-side CSV sync.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">Actions</h3>
+            <div class="btn-row">
+              <button id="csv-discover" type="button">Discover CSV Links</button>
+              <button id="csv-discover-fetch" type="button">
+                Discover + Fetch All
+              </button>
+              <button id="csv-fetch-all" class="btn-secondary" type="button">
+                Fetch All Discovered
+              </button>
+              <button id="csv-upload-all" class="btn-secondary" type="button">
+                Upload Ready to S3
+              </button>
+            </div>
+          </div>
+
+          <div id="csv-summary" class="summary" hidden></div>
+
+          <div id="csv-links-card" class="card" style="display: none">
+            <h3 class="card__title">Discovered CSV Files</h3>
+            <div id="csv-links"></div>
+          </div>
+
+          <div id="csv-empty" class="empty-state">
+            <strong>No discovery yet</strong>
+            Open a Granot page with Booked Jobs / Follow Up Estimates, then click
+            <em>Discover CSV Links</em> or <em>Discover + Fetch All</em>.
           </div>
         </section>
 

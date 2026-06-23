@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bookedReconciliationRowToCycleDetail,
   buildCycleSummary,
   callEnrichmentRowToCycleDetail,
   followUpRowToCycleDetail,
@@ -167,6 +168,48 @@ describe("callEnrichmentRowToCycleDetail", () => {
         },
       }),
     );
+    expect(detail.status).toBe("failed");
+  });
+});
+
+describe("bookedReconciliationRowToCycleDetail", () => {
+  it("maps an updated booked reconciliation result", () => {
+    const detail = bookedReconciliationRowToCycleDetail({
+      payload: {
+        row_id: "booked-1",
+        row_index: 3,
+        section: "bookedJobs",
+        customer: "Jane Doe",
+        phone: "+15551234567",
+        job_no: "P123",
+        est_cf: "400",
+      },
+      result: {
+        row_id: "booked-1",
+        status: "updated",
+        message: "Updated booked call lead",
+        changes: ["est_cf"],
+        warnings: [],
+      },
+    });
+    expect(detail.rowId).toBe("booked-1");
+    expect(detail.rowLabel).toBe("#3 Jane Doe");
+    expect(detail.status).toBe("ok");
+    expect(detail.message).toContain("table=Booked Jobs");
+    expect(detail.message).toContain("changes: est_cf");
+  });
+
+  it("treats booking_missing as failed", () => {
+    const detail = bookedReconciliationRowToCycleDetail({
+      payload: { row_id: "booked-2" },
+      result: {
+        row_id: "booked-2",
+        status: "booking_missing",
+        message: "missing booking",
+        changes: [],
+        warnings: [],
+      },
+    });
     expect(detail.status).toBe("failed");
   });
 });

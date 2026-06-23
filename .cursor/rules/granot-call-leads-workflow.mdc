@@ -1,0 +1,16 @@
+---
+description: Granot Call Leads preview, enrichment, and booked reconciliation workflow
+globs: src/workflows/call-leads/**/*.ts,src/parsers/granot/call-leads.ts,src/test/parsers.test.ts
+alwaysApply: false
+---
+
+# Granot Call Leads Workflow
+
+- `src/parsers/granot/call-leads.ts` parses the Booked Jobs and Follow Up Estimates tables into sectioned preview rows keyed by table header text. The parser is read-only and only reports what is visible in the current Granot page or accessible frames.
+- `payloads.ts` maps preview rows into the server payloads used for enrichment and booked reconciliation. The `phone` field is included for matching only and must not be treated as a value to write back into `CallLead.phone_number`.
+- `payloads.ts` also defines the sync gates: enrichment rows and booked reconciliation rows are only syncable when the server preview result is `updateable`, `unchanged`, or `updated`.
+- `preview.ts` converts a parsed preview response into enrichment and booked-reconciliation payloads, calls the server preview endpoints, and merges results back by `row_id`. If preview fails for one side, the other side can still render.
+- `sync.ts` merges returned results back into the preview rows and tallies `updated`, `unchanged`, and `failed` counts. Booked reconciliation treats `conflict`, `booking_missing`, `no_match`, `invalid`, and `failed` as failures.
+- `cycles.ts` turns enrichment previews into `CycleDetail` entries for auto-sync history, with `updated -> ok`, `unchanged -> unchanged`, `failed/conflict -> failed`, and missing results -> `skipped`.
+- The workflow tests live primarily in `src/test/parsers.test.ts`; they confirm the parser shape and the section visibility contract used by the popup and background runner.
+

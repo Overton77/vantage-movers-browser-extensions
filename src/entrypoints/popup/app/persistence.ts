@@ -7,6 +7,7 @@ import type {
   IntervalUnit,
   PersistedState,
   ProgressFilter,
+  SearchEntity,
   WorkspaceId,
 } from "../../../app/state";
 
@@ -46,6 +47,26 @@ export async function loadPersistedState(state: AppState): Promise<void> {
         state.callLeads.progressFilter = cl.progressFilter;
       }
     }
+    if (raw.search) {
+      const sr = raw.search;
+      if (isSearchEntity(sr.entity)) {
+        state.search.entity = sr.entity;
+      }
+      if (sr.query && typeof sr.query === "object") {
+        for (const key of [
+          "q",
+          "source_company",
+          "name",
+          "email",
+          "phone_number",
+        ] as const) {
+          const value = sr.query[key];
+          if (typeof value === "string") {
+            state.search.query[key] = value;
+          }
+        }
+      }
+    }
   } catch (err) {
     console.warn("[Granot Sync] Failed to load persisted state:", err);
   }
@@ -64,6 +85,10 @@ export async function savePersistedState(state: AppState): Promise<void> {
       intervalUnit: state.callLeads.intervalUnit,
       progressFilter: state.callLeads.progressFilter,
     },
+    search: {
+      entity: state.search.entity,
+      query: { ...state.search.query },
+    },
   };
   try {
     await browser.storage.local.set({ [STORAGE_KEY]: payload });
@@ -76,11 +101,18 @@ export function isWorkspaceId(value: unknown): value is WorkspaceId {
   return (
     value === "form-leads" ||
     value === "form-edit-lead" ||
+    value === "binding-estimate-fee" ||
     value === "call-leads" ||
+    value === "search" ||
+    value === "csv" ||
     value === "automation" ||
     value === "diagnose" ||
     value === "debug"
   );
+}
+
+export function isSearchEntity(value: unknown): value is SearchEntity {
+  return value === "form-leads" || value === "call-leads";
 }
 
 export function isIntervalUnit(value: unknown): value is IntervalUnit {

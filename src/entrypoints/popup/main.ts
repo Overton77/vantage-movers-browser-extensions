@@ -4,6 +4,8 @@
 // kicks off the first render. All workspace logic lives in the `app/`, `ui/`,
 // and `workspaces/` modules (split out in Unit 07).
 import { createInitialState } from "./app/state";
+import { bootstrapAuthSession } from "../../auth/session";
+import { canAccessWorkspace, defaultWorkspaceForSession } from "../../auth/gate";
 import type { AppContext } from "./app/context";
 import { attachEventHandlers } from "./app/events";
 import { loadPersistedState } from "./app/persistence";
@@ -49,14 +51,21 @@ async function init(): Promise<void> {
   }
 
   await loadPersistedState(state);
+  state.auth.session = await bootstrapAuthSession();
+  state.auth.loading = false;
+  if (!canAccessWorkspace(state.auth.session, state.activeWorkspace)) {
+    state.activeWorkspace = defaultWorkspaceForSession(state.auth.session);
+  }
 
   hydrateInterfaceFromState(app);
   setActiveWorkspace(app, state.activeWorkspace, { persist: false });
   attachEventHandlers(app);
   renderAll(app);
   void refreshConnectionChip(app);
-  void loadCurrentLeadPreview(app, { preserveOverride: false, quiet: true });
-  void loadAutomationView(app);
+  if (state.auth.session?.user.role === "owner") {
+    void loadCurrentLeadPreview(app, { preserveOverride: false, quiet: true });
+    void loadAutomationView(app);
+  }
 }
 
 function hydrateInterfaceFromState(app: AppContext): void {

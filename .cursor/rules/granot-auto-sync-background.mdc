@@ -1,0 +1,17 @@
+---
+description: Granot background auto-sync settings, locking, and cycle runner
+globs: src/auto-sync/**/*.ts,src/entrypoints/background.ts,src/test/auto-sync-*.test.ts
+alwaysApply: false
+---
+
+# Granot Background Auto-Sync
+
+- `src/auto-sync/settings.ts` owns the unattended automation settings model. The persisted key is `granot-sync:auto-sync-settings-v1`, the minimum interval is 1 minute, and the conservative defaults are: disabled, preview-only, Form Leads enabled, both Call Leads workflows disabled, and fallback form matches disabled.
+- `src/auto-sync/locks.ts` implements the 5-minute stale lock stored under `granot-sync:auto-sync-lock-v1`. It prevents overlapping background cycles when the alarm fires again before the previous cycle finishes.
+- `src/auto-sync/storage.ts` persists recent cycles under `granot-sync:auto-sync-cycles-v1` and caps history to 25 cycles per workflow.
+- `src/auto-sync/background-runner.ts` is the unattended runner. It loads settings, acquires the lock, resolves the pinned Granot tab, sends parser messages through `src/messaging/tabs.ts`, previews the relevant workflow(s), optionally syncs them, and writes a `BackgroundCycle` record for each workflow pass.
+- Form Leads background cycles use `PARSE_FOLLOW_UP_ROWS`, then `previewFormLeadRows()` and `syncLeadCandidates()` from the form-leads workflow. Fallback matches stay preview-only unless `allowFallbackFormMatches` is enabled.
+- Call Leads background cycles use `PARSE_CALL_LEAD_TABLES`, then `previewCallLeads()`, and can sync enrichment and booked reconciliation independently behind their own workflow flags.
+- `src/entrypoints/background.ts` reconciles the `granot-sync:auto-sync` alarm on install, startup, and settings changes, then invokes `runBackgroundAutoSync()` when the alarm fires.
+- The tests in `src/test/auto-sync-background.test.ts` and `src/test/auto-sync-cycles.test.ts` cover settings normalization, lock staleness, cycle capping, and cycle-detail formatting.
+

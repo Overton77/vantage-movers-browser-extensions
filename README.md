@@ -17,7 +17,9 @@ cd granot_sync_extensions_and_services
 pnpm install
 ```
 
-Copy `.env.example` to `.env` if you need to override the API base URL.
+Copy `.env.example` to `.env` if you need to override the API base URL. Leave
+`VITE_VANTAGE_API_SECRET` empty for production or distributed builds; the popup
+signs in with a Vantage extension user and sends Bearer tokens at runtime.
 
 ## Development
 
@@ -68,6 +70,7 @@ Output goes to `.output/`.
 
 ```
 src/
+  auth/                        # Extension login, token storage, and role gates
   config.ts                    # URL patterns & API base
   entrypoints/
     background.ts                # Service worker
