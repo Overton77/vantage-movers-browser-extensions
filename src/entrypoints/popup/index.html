@@ -19,8 +19,8 @@
           system-ui,
           -apple-system,
           sans-serif;
-        min-width: 860px;
-        min-height: 640px;
+        min-width: 0;
+        min-height: 480px;
         color: #0f172a;
         background: #f1f5f9;
         overflow: hidden;
@@ -44,7 +44,8 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        flex-wrap: wrap;
+        gap: 8px 12px;
         padding: 10px 16px;
         background: #0f172a;
         color: #f8fafc;
@@ -54,6 +55,7 @@
         display: flex;
         align-items: baseline;
         gap: 8px;
+        flex-shrink: 0;
       }
       .app__top-title h1 {
         font-size: 16px;
@@ -69,8 +71,11 @@
       .app__top-actions {
         display: flex;
         align-items: center;
-        gap: 10px;
-        white-space: nowrap;
+        justify-content: flex-end;
+        flex: 1 1 240px;
+        min-width: 0;
+        gap: 8px;
+        flex-wrap: wrap;
       }
       .conn-chip {
         display: inline-flex;
@@ -82,6 +87,14 @@
         background: #1e293b;
         color: #cbd5e1;
         border: 1px solid #334155;
+        flex-shrink: 0;
+        max-width: 100%;
+      }
+      .conn-chip #conn-chip-text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 160px;
       }
       .conn-chip__dot {
         width: 8px;
@@ -100,6 +113,14 @@
       .auth-user {
         font-size: 11px;
         color: #cbd5e1;
+        max-width: min(220px, 42vw);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #open-detached,
+      #binding-estimate-fee-open-detached {
+        flex-shrink: 0;
       }
       .auth-panel {
         max-width: 420px;
@@ -1137,12 +1158,12 @@
             <span class="conn-chip__dot"></span>
             <span id="conn-chip-text">checking tab…</span>
           </span>
+          <button id="open-detached" class="btn-secondary btn-sm" type="button">
+            ⤢ Movable Window
+          </button>
           <span id="auth-user" class="auth-user" hidden></span>
           <button id="auth-logout" class="btn-secondary btn-sm" type="button" hidden>
             Sign out
-          </button>
-          <button id="open-detached" class="btn-secondary btn-sm" type="button">
-            ⤢ Movable Window
           </button>
         </div>
       </header>
@@ -1508,7 +1529,19 @@
               <button id="binding-estimate-fee-fill" type="button">
                 Fill Binding Estimate Fee
               </button>
+              <button
+                id="binding-estimate-fee-open-detached"
+                class="btn-secondary"
+                type="button"
+              >
+                ⤢ Open Movable Window
+              </button>
             </div>
+            <p class="status-text" style="margin: 10px 0 0">
+              If the top-bar button is hard to reach in the toolbar popup, use
+              <em>Open Movable Window</em> here to detach this panel into its own
+              browser window.
+            </p>
           </div>
 
           <div id="binding-estimate-fee-content"></div>

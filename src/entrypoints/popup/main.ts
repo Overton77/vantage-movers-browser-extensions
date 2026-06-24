@@ -47,7 +47,9 @@ async function init(): Promise<void> {
   const manifest = browser.runtime.getManifest();
   dom.appVersion.textContent = `v${manifest.version}`;
   if (isDetachedWindow) {
-    dom.openDetached.textContent = "✓ Movable Window Active";
+    const detachedLabel = "✓ Movable Window Active";
+    dom.openDetached.textContent = detachedLabel;
+    dom.bef.openDetached.textContent = detachedLabel;
   }
 
   await loadPersistedState(state);

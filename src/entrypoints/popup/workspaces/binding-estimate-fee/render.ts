@@ -4,6 +4,8 @@ export function renderBindingEstimateFee(app: AppContext): void {
   const { dom, state } = app;
   const result = state.bindingEstimateFee.bindingEstimateFeeResult;
   dom.bef.fill.disabled = state.isBusy;
+  dom.bef.openDetached.disabled =
+    state.isBusy || app.isDetachedWindow || !state.auth.session;
   dom.bef.content.textContent = "";
 
   if (!result) {

@@ -81,6 +81,7 @@ export function attachEventHandlers(app: AppContext): void {
 
   // Top bar
   dom.openDetached.addEventListener("click", () => void openDetached(app));
+  dom.bef.openDetached.addEventListener("click", () => void openDetached(app));
   dom.authLogout.addEventListener("click", () => {
     void handleLogout(app);
   });

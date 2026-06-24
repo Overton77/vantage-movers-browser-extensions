@@ -47,7 +47,10 @@ export function updateSidebarPulses(app: AppContext): void {
 export function updateGlobalControls(app: AppContext): void {
   const { dom, state } = app;
   const isBusy = state.isBusy;
-  dom.openDetached.disabled = isBusy || app.isDetachedWindow || !state.auth.session;
+  const detachedDisabled =
+    isBusy || app.isDetachedWindow || !state.auth.session;
+  dom.openDetached.disabled = detachedDisabled;
+  dom.bef.openDetached.disabled = detachedDisabled;
   dom.auth.submit.disabled = isBusy || state.auth.loading;
   dom.authLogout.disabled = isBusy || state.auth.loading;
   dom.statusSpinner.classList.toggle("is-visible", isBusy);
@@ -74,6 +77,9 @@ export function updateAuthShell(app: AppContext): void {
   dom.authUser.hidden = !authenticated;
   dom.authLogout.hidden = !authenticated;
   dom.authUser.textContent = session
+    ? `${session.user.email} (${session.user.role})`
+    : "";
+  dom.authUser.title = session
     ? `${session.user.email} (${session.user.role})`
     : "";
 

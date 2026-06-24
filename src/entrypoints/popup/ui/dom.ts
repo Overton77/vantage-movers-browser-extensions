@@ -110,6 +110,7 @@ export function getPopupDom() {
     // Binding Estimate Fee
     bef: {
       fill: el<HTMLButtonElement>("binding-estimate-fee-fill"),
+      openDetached: el<HTMLButtonElement>("binding-estimate-fee-open-detached"),
       content: el<HTMLDivElement>("binding-estimate-fee-content"),
     },
 
