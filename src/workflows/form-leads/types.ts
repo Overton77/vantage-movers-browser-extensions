@@ -26,6 +26,8 @@ export type FollowUpRow = {
   customer?: string;
   phone?: string;
   email?: string;
+  /** Raw Granot `user` column value, falling back to `rep` when `user` is blank. */
+  salesRepRaw?: string;
   status: LeadStatus;
   reason?: string;
 };

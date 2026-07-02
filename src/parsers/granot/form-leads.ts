@@ -30,6 +30,8 @@ export type FollowUpRow = {
   customer?: string;
   phone?: string;
   email?: string;
+  /** Raw Granot `user` column value, falling back to `rep` when `user` is blank. */
+  salesRepRaw?: string;
   status: "syncable" | "invalid_ref_no" | "unsupported_prior" | "missing_prior";
   reason?: string;
 };
@@ -155,6 +157,9 @@ function readRowsFromTable(
       customer: getColumnValue(cells, header.columns.customer),
       phone: getColumnValue(cells, header.columns.phone),
       email: getColumnValue(cells, header.columns.email),
+      salesRepRaw:
+        getColumnValue(cells, header.columns.user) ||
+        getColumnValue(cells, header.columns.rep),
     };
 
     if (!prior) {

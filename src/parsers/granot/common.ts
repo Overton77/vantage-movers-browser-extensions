@@ -16,6 +16,8 @@ export const FIELD_ALIASES = {
   customer: ["customer"],
   phone: ["phone"],
   email: ["email"],
+  user: ["user"],
+  rep: ["rep"],
 } as const;
 
 export type HeaderColumns = Record<keyof typeof FIELD_ALIASES, number>;

@@ -57,6 +57,8 @@ export type CallLeadEnrichmentResult = {
   match_method?: CallLeadMatchMethod;
   /** Whether the matched call lead has a Vantage booking attached. */
   has_booking?: boolean;
+  /** Name snapshot of the agent already linked as `receiver_agent`, if any. */
+  receiver_agent_name_snapshot?: string;
   changes: string[];
   warnings: string[];
   parsed?: Record<string, unknown>;
@@ -87,6 +89,8 @@ export type BookedCallLeadReconciliationResult = {
   match_method?: BookedCallLeadMatchMethod;
   /** Whether the matched call lead has a Vantage booking attached. */
   has_booking?: boolean;
+  /** Name snapshot of the agent already linked as `receiver_agent`, if any. */
+  receiver_agent_name_snapshot?: string;
   changes: string[];
   warnings: string[];
   parsed?: Record<string, unknown>;

@@ -24,6 +24,7 @@ import {
   resultBadge,
   statusBadge,
 } from "../../ui/components";
+import { buildSalesRepControl } from "../../ui/salesRep";
 import { syncRows } from "./actions";
 
 export function renderFormLeads(app: AppContext): void {
@@ -268,6 +269,18 @@ function buildFormLeadRowElement(
     body.append(metaEl);
   }
 
+  const salesRep = buildSalesRepControl(app, {
+    rowKey: `form:${row.id}`,
+    leadKind: "form",
+    leadId: preview?.resolvedVantageId,
+    rawValue: row.salesRepRaw,
+    linkedName: preview?.current?.receiver_agent_name_snapshot,
+    rerender: () => renderFormLeads(app),
+  });
+  if (salesRep) {
+    body.append(salesRep);
+  }
+
   details.append(body);
   return details;
 }
@@ -396,6 +409,7 @@ function formLeadRowFields(row: FollowUpRow): Record<string, string> {
     customer: row.customer ?? "",
     phone: row.phone ?? "",
     email: row.email ?? "",
+    sales_rep_raw: row.salesRepRaw ?? "",
   };
 }
 
@@ -485,6 +499,7 @@ export function renderFormLeadsLogTables(app: AppContext): void {
     customer: row.customer || "",
     phone: row.phone || "",
     email: row.email || "",
+    sales_rep_raw: row.salesRepRaw || "",
     status: row.status,
     reason: row.reason || "",
   }));

@@ -17,6 +17,7 @@ import type {
   RowSyncResult,
 } from "../workflows/form-leads/types";
 import type { CallLeadCard, FormLeadCard } from "../api/leadBrowse";
+import type { Agent } from "../api/agents";
 import type { CsvFileSnapshot, GranotCsvLink } from "../workflows/csv-sync/types";
 import type { BindingEstimateFeeApplyResult } from "../parsers/granot/form-edit-lead";
 import type { AuthSession } from "../auth/types";
@@ -146,6 +147,40 @@ export type AuthState = {
   error?: string;
 };
 
+/** Editable fields for the Sales Rep create/edit dialog, keyed by row key. */
+export type SalesRepDialogState = {
+  name: string;
+  role: string;
+  active: boolean;
+  /** Inline search query over the full agent list (typo/nickname fallback). */
+  searchQuery: string;
+  error?: string;
+};
+
+/**
+ * Agent catalog cache + ephemeral per-row Sales Rep attribution UI state for
+ * the call-leads/form-leads workspaces. Deliberately kept out of `formLeads`/
+ * `callLeads` state (and out of `PersistedState`) since none of this survives
+ * a popup reload — see the "do not persist scan results" rule in
+ * `persistence.ts`, which this mirrors for the Sales Rep flow.
+ */
+export type AgentsState = {
+  items: Agent[];
+  loading: boolean;
+  loaded: boolean;
+  error?: string;
+  /** Row key -> open create/edit dialog state. Presence means the dialog is open. */
+  dialogs: Map<string, SalesRepDialogState>;
+  /** Row keys currently mid-flight on a link/create API call. */
+  busyRowKeys: Set<string>;
+  /** Row keys where the owner clicked "Change" on an already-linked row. */
+  changeRequested: Set<string>;
+  /** Row keys where the owner dismissed the dialog without linking. */
+  closedRowKeys: Set<string>;
+  /** Row key -> agent name, applied optimistically right after a successful link. */
+  linkedOverrides: Map<string, string>;
+};
+
 export type AppState = {
   activeWorkspace: WorkspaceId;
   isBusy: boolean;
@@ -157,6 +192,7 @@ export type AppState = {
   search: SearchState;
   csv: CsvState;
   automation: AutomationState;
+  agents: AgentsState;
 };
 
 export type PersistedState = {

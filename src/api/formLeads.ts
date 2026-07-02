@@ -14,6 +14,8 @@ export type FormLeadLookup = {
    * show "This form lead has a booking attached".
    */
   booked?: string | null;
+  /** Name snapshot of the agent already linked as `receiver_agent`, if any. */
+  receiver_agent_name_snapshot?: string;
 };
 
 export type FormLeadUpdatePayload = {

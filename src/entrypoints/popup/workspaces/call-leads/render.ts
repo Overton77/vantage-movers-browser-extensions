@@ -4,6 +4,7 @@
 // panel. Extracted from `popup/main.ts` in Unit 07. Per-row Sync buttons
 // delegate to the workspace actions module.
 import { formatIntervalLabel } from "../../../../auto-sync/cycles";
+import { getSalesRepRaw } from "../../../../parsers/granot/call-leads";
 import {
   canSyncBookedCallReconciliationRow,
   canSyncCallEnrichmentRow,
@@ -28,6 +29,7 @@ import {
   compactChip,
   fieldBlock,
 } from "../../ui/components";
+import { buildSalesRepControl } from "../../ui/salesRep";
 import { syncBookedCallRows, syncCallRows } from "./actions";
 
 export function renderCallLeads(app: AppContext): void {
@@ -248,6 +250,8 @@ function buildBookedRowElement(
     matchMethod: reconciliation?.result?.match_method,
     hasBooking: reconciliation?.result?.has_booking,
     selectable: false,
+    leadId: reconciliation?.result?.call_lead_id,
+    linkedName: reconciliation?.result?.receiver_agent_name_snapshot,
   });
 }
 
@@ -270,6 +274,8 @@ function buildCallLeadRowElement(
     matchMethod: enrichment?.result?.match_method,
     hasBooking: enrichment?.result?.has_booking,
     selectable: true,
+    leadId: enrichment?.result?.call_lead_id,
+    linkedName: enrichment?.result?.receiver_agent_name_snapshot,
   });
 }
 
@@ -294,6 +300,9 @@ function buildCallRowAccordion(
     matchMethod?: CallLeadMatchMethod | BookedCallLeadMatchMethod;
     hasBooking?: boolean;
     selectable: boolean;
+    /** Resolved Vantage `_id` for the Sales Rep control; undefined hides it. */
+    leadId?: string;
+    linkedName?: string;
   },
 ): HTMLDetailsElement {
   const { row, workflow, result, canSync, onSync, matchMethod, hasBooking } =
@@ -417,6 +426,18 @@ function buildCallRowAccordion(
       metaEl.textContent = metaParts.join(" | ");
       body.append(metaEl);
     }
+  }
+
+  const salesRep = buildSalesRepControl(app, {
+    rowKey: `call:${workflow}:${row.id}`,
+    leadKind: "call",
+    leadId: opts.leadId,
+    rawValue: getSalesRepRaw(row),
+    linkedName: opts.linkedName,
+    rerender: () => renderCallLeads(app),
+  });
+  if (salesRep) {
+    body.append(salesRep);
   }
 
   details.append(body);

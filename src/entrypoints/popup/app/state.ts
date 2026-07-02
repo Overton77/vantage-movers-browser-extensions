@@ -70,5 +70,15 @@ export function createInitialState(): AppState {
       hasDiscovered: false,
       openFileIds: new Set(),
     },
+    agents: {
+      items: [],
+      loading: false,
+      loaded: false,
+      dialogs: new Map(),
+      busyRowKeys: new Set(),
+      changeRequested: new Set(),
+      closedRowKeys: new Set(),
+      linkedOverrides: new Map(),
+    },
   };
 }

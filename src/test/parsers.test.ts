@@ -4,7 +4,7 @@ import bookedJobsHtml from "./fixtures/form-leads-booked-jobs.html?raw";
 import callLeadsPageHtml from "./fixtures/call-leads-page.html?raw";
 import formEditLeadHtml from "./fixtures/form-edit-lead.html?raw";
 import followUpEstimatesHtml from "./fixtures/form-leads-follow-up-estimates.html?raw";
-import { parseCallLeadTables } from "../parsers/granot/call-leads";
+import { getSalesRepRaw, parseCallLeadTables } from "../parsers/granot/call-leads";
 import {
   applyBindingEstimateFeeFromInitialPrice,
   parseCurrentFormLead,
@@ -66,6 +66,8 @@ describe("parseFormLeadRows (Booked Jobs / Follow Up Estimates)", () => {
     expect(syncableRow.quoted).toBe(true);
     expect(syncableRow.cubicFeet).toBe(491);
     expect(syncableRow.jobNo).toBe("P5556767");
+    expect(invalidRow.salesRepRaw).toBe("JACOB");
+    expect(syncableRow.salesRepRaw).toBe("MIKEM");
   });
 
   it("parses Follow Up Estimates rows (all invalid ref_no in fixture)", () => {
@@ -80,6 +82,8 @@ describe("parseFormLeadRows (Booked Jobs / Follow Up Estimates)", () => {
     ]);
     // "Pool" is a non-numeric prior that is preserved as-is.
     expect(result.rows[1].prior).toBe("Pool");
+    expect(result.rows[0].salesRepRaw).toBe("SEAN");
+    expect(result.rows[2].salesRepRaw).toBe("ROY");
     expect(result.counts).toEqual({
       total: 3,
       syncable: 0,
@@ -202,6 +206,21 @@ describe("parseCallLeadTables (Call Leads preview)", () => {
     expect(followUp?.tableFound).toBe(true);
     expect(followUp?.rows).toHaveLength(1);
     expect(followUp?.rows[0].values.customer).toBe("Luis Cruz");
+  });
+
+  it("resolves salesRepRaw from `user`, falling back to `rep` when `user` is blank", () => {
+    const result = parseCallLeadTables(parseHtml(callLeadsPageHtml));
+
+    const booked = result.sections.find(
+      (section) => section.key === "bookedJobs",
+    );
+    const followUp = result.sections.find(
+      (section) => section.key === "followUpEstimates",
+    );
+
+    expect(getSalesRepRaw(booked!.rows[0])).toBe("JACOB");
+    expect(followUp?.rows[0].values.user).toBeFalsy();
+    expect(getSalesRepRaw(followUp!.rows[0])).toBe("MIKEM");
   });
 
   it("reports pageFound: false when no call lead tables are present", () => {

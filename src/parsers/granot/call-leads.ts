@@ -68,6 +68,16 @@ export function parseCallLeadTables(root: Document): CallLeadPreviewResult {
   return result;
 }
 
+/**
+ * Raw Granot `user` column value for a preview row, falling back to `rep`
+ * when `user` is blank. Unlike `form-leads.ts`, preview table headers are
+ * literal column names (not run through `normalizeHeaderText`/aliasing), so
+ * this reads `values.user`/`values.rep` directly.
+ */
+export function getSalesRepRaw(row: CallLeadPreviewRow): string | undefined {
+  return row.values.user?.trim() || row.values.rep?.trim() || undefined;
+}
+
 function readPreviewTable(table: HTMLTableElement): {
   headers: string[];
   rows: CallLeadPreviewRow[];
