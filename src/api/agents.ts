@@ -14,6 +14,7 @@ export type Agent = {
   active: boolean;
   created_from: string;
   role?: string;
+  granot_crm_username?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -34,6 +35,7 @@ export type UpdateAgentInput = {
   name?: string;
   role?: string;
   active?: boolean;
+  granot_crm_username?: string;
 };
 
 export async function listAgents(
@@ -74,6 +76,7 @@ export type ReceiverAgentSource =
   | "extension_match"
   | "extension_selected"
   | "extension_created"
+  | "extension_crm_username_match"
   | "manual";
 
 export type LinkReceiverAgentInput = {

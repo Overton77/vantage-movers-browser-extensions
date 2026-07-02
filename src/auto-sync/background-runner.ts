@@ -13,6 +13,7 @@
 //   - overlapping cycles are prevented by the storage lock
 import {
   getFormLeadById,
+  listAgents,
   previewBookedCallLeadReconciliation,
   previewCallLeadEnrichment,
   searchFormLeads,
@@ -248,10 +249,11 @@ async function runFormLeadsCycle(
   const candidates = syncableRows.map((row) =>
     rowToSyncCandidate(row, previews.get(row.id)),
   );
+  const agents = await loadAgentsForReceiverMatching();
   const resultsById = new Map<string, RowSyncResult>();
   const counts = await syncLeadCandidates(
     candidates,
-    { getFormLeadById, updateFormLead },
+    { getFormLeadById, updateFormLead, agents },
     (id, result) => {
       resultsById.set(id, result);
     },
@@ -271,6 +273,18 @@ async function runFormLeadsCycle(
     message: buildCycleSummary("Form Leads", syncableRows.length, counts),
     details,
   };
+}
+
+async function loadAgentsForReceiverMatching() {
+  try {
+    return await listAgents({ includeInactive: true });
+  } catch (err) {
+    console.warn(
+      "[Granot Sync] Could not load Agents for CRM username receiver matching.",
+      err,
+    );
+    return [];
+  }
 }
 
 function formLeadPreviewToDetail(

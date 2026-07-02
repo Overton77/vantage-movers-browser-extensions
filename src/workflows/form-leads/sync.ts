@@ -3,7 +3,9 @@
 // reports each row result back through `onResult`. Returns aggregate counts.
 // API access is injected so the same logic can run from the popup or a future
 // background runner.
+import type { Agent } from "../../api/agents";
 import type { FormLeadLookup, FormLeadUpdatePayload } from "../../utils/api";
+import { matchAgentByCrmUsername } from "../agents/match";
 import {
   buildFormLeadSyncPayload,
   buildFormLeadUpdatePayload,
@@ -19,6 +21,7 @@ export type FormLeadSyncContext = {
     id: string,
     payload: FormLeadUpdatePayload,
   ) => Promise<FormLeadLookup>;
+  agents?: Agent[];
 };
 
 export async function syncLeadCandidates(
@@ -55,7 +58,11 @@ export async function syncLeadCandidates(
         continue;
       }
 
-      const updatePayload = buildFormLeadUpdatePayload(candidate, current);
+      const receiverMatch = buildReceiverAgentUpdate(candidate, current, context.agents);
+      const updatePayload = {
+        ...buildFormLeadUpdatePayload(candidate, current),
+        ...receiverMatch.payload,
+      };
       const syncPayload =
         Object.keys(updatePayload).length > 0
           ? updatePayload
@@ -66,13 +73,19 @@ export async function syncLeadCandidates(
         unchanged += 1;
         onResult(candidate.id, {
           status: "unchanged",
-          message: `${buildUnchangedMessage(candidate)}; sync request sent anyway.`,
+          message: appendReceiverMessage(
+            `${buildUnchangedMessage(candidate)}; sync request sent anyway.`,
+            receiverMatch.message,
+          ),
         });
       } else {
         updated += 1;
         onResult(candidate.id, {
           status: "updated",
-          message: buildUpdatedMessage(updatePayload),
+          message: appendReceiverMessage(
+            buildUpdatedMessage(updatePayload),
+            receiverMatch.message,
+          ),
         });
       }
     } catch (err) {
@@ -85,4 +98,41 @@ export async function syncLeadCandidates(
   }
 
   return { updated, unchanged, failed };
+}
+
+function buildReceiverAgentUpdate(
+  candidate: LeadSyncCandidate,
+  current: FormLeadLookup,
+  agents: Agent[] | undefined,
+): { payload?: FormLeadUpdatePayload; message?: string } {
+  const match = matchAgentByCrmUsername(candidate.salesRepRaw, agents ?? []);
+  if (!match.username) {
+    return {};
+  }
+
+  if (current.receiver_agent) {
+    return {
+      message: `Receiver Agent already set; CRM username ${match.username} did not overwrite it.`,
+    };
+  }
+
+  if (match.status === "none") {
+    return {
+      message: `No Agent matched CRM username ${match.username}.`,
+    };
+  }
+
+  const activeLabel = match.candidate.active ? "active" : "inactive";
+  return {
+    payload: {
+      receiver_agent: match.candidate._id,
+      receiver_agent_source: "extension_crm_username_match",
+      receiver_agent_source_value: match.username,
+    },
+    message: `Matched ${activeLabel} Agent "${match.candidate.name}" by CRM username ${match.username}.`,
+  };
+}
+
+function appendReceiverMessage(message: string, receiverMessage: string | undefined): string {
+  return receiverMessage ? `${message} ${receiverMessage}` : message;
 }

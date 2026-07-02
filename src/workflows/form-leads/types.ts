@@ -72,6 +72,8 @@ export type LeadSyncCandidate = {
   prior?: string;
   quoted?: boolean;
   cubicFeet?: number;
+  /** Raw Granot `user`/`rep` value used for CRM username receiver matching. */
+  salesRepRaw?: string;
   status: LeadStatus;
   /**
    * Resolved Vantage form lead `_id` to PATCH. For direct id matches this is

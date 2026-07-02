@@ -49,6 +49,7 @@ export function callLeadRowsToEnrichmentPayloads(
     source: getPreviewValue(row, "source"),
     customer: getPreviewValue(row, "customer"),
     phone: getPreviewValue(row, "phone"),
+    granot_crm_username: getSalesRepValue(row),
     email: getPreviewValue(row, "email"),
     from_zip: getPreviewValue(row, "from_zip"),
     to_zip: getPreviewValue(row, "to_zip"),
@@ -75,6 +76,7 @@ export function callLeadRowsToBookedReconciliationPayloads(
     book_date: getPreviewValue(row, "book_date"),
     customer: getPreviewValue(row, "customer"),
     phone: getPreviewValue(row, "phone"),
+    granot_crm_username: getSalesRepValue(row),
     email: getPreviewValue(row, "email"),
     from_zip: getPreviewValue(row, "from_zip"),
     to_zip: getPreviewValue(row, "to_zip"),
@@ -88,4 +90,8 @@ function getPreviewValue(
 ): string | undefined {
   const value = row.values[key];
   return value?.trim() || undefined;
+}
+
+function getSalesRepValue(row: CallLeadPreviewRow): string | undefined {
+  return getPreviewValue(row, "user") ?? getPreviewValue(row, "rep");
 }

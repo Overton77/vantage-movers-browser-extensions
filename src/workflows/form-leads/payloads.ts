@@ -118,6 +118,7 @@ export function rowToSyncCandidate(
     prior: row.prior,
     quoted,
     cubicFeet: isCubicFeetSyncable(row.prior) ? row.cubicFeet : undefined,
+    salesRepRaw: row.salesRepRaw,
     status: row.status,
     vantageId: isFallback ? preview?.resolvedVantageId : row.refNo,
   };

@@ -5,6 +5,7 @@
 // Extracted from `popup/main.ts` in Unit 07.
 import {
   getFormLeadById,
+  listAgents,
   searchFormLeads,
   updateFormLead,
 } from "../../../../utils/api";
@@ -150,9 +151,21 @@ export async function syncRows(
   setBusy(app, true);
   setStatus(dom, `Syncing ${syncableRows.length} row(s)…`);
 
+  let agents = app.state.agents.items;
+  try {
+    if (!app.state.agents.loaded) {
+      agents = await listAgents({ includeInactive: true });
+      app.state.agents.items = agents;
+      app.state.agents.loaded = true;
+      app.state.agents.error = undefined;
+    }
+  } catch (err) {
+    app.state.agents.error = err instanceof Error ? err.message : String(err);
+  }
+
   const results = await runSyncLeadCandidates(
     syncableRows,
-    { getFormLeadById, updateFormLead },
+    { getFormLeadById, updateFormLead, agents },
     (id, result) => {
       app.state.formLeads.syncResults.set(id, result);
       renderFormLeads(app);

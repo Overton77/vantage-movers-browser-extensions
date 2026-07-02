@@ -14,13 +14,19 @@ export type FormLeadLookup = {
    * show "This form lead has a booking attached".
    */
   booked?: string | null;
+  receiver_agent?: string | null;
   /** Name snapshot of the agent already linked as `receiver_agent`, if any. */
   receiver_agent_name_snapshot?: string;
+  receiver_agent_source?: string;
+  receiver_agent_source_value?: string;
 };
 
 export type FormLeadUpdatePayload = {
   quoted?: boolean;
   cubic_feet?: number;
+  receiver_agent?: string;
+  receiver_agent_source?: "extension_crm_username_match";
+  receiver_agent_source_value?: string;
 };
 
 /** A single candidate returned by `POST /api/v1/form-leads/search`. */

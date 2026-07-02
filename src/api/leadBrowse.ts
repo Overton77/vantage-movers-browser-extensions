@@ -31,6 +31,8 @@ export type FormLeadCard = {
   quoted?: boolean;
   cubic_feet?: number;
   createdAt?: string;
+  receiver_agent_name_snapshot?: string;
+  receiver_agent_granot_crm_username?: string;
   booked: LeadBookingSummary | null;
   cancelled: LeadCancellationSummary | null;
 };
@@ -44,6 +46,8 @@ export type CallLeadCard = {
   job_no?: string;
   cubic_feet?: number;
   createdAt?: string;
+  receiver_agent_name_snapshot?: string;
+  receiver_agent_granot_crm_username?: string;
   booked: LeadBookingSummary | null;
   cancelled: LeadCancellationSummary | null;
 };

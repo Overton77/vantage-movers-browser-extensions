@@ -12,7 +12,10 @@ import {
   type Agent,
   type ReceiverAgentSource,
 } from "../../../api/agents";
-import { matchAgentsByFirstName } from "../../../workflows/agents/match";
+import {
+  matchAgentByCrmUsername,
+  matchAgentsByFirstName,
+} from "../../../workflows/agents/match";
 import type { SalesRepDialogState } from "../../../app/state";
 import type { AppContext } from "../app/context";
 import { setStatus } from "./status";
@@ -113,10 +116,25 @@ export function buildSalesRepControl(
     return wrapper;
   }
 
+  const crmMatch = matchAgentByCrmUsername(rawValue, agents.items);
   const match = matchAgentsByFirstName(rawValue, agents.items);
 
   if (agents.closedRowKeys.has(opts.rowKey)) {
     wrapper.append(buildReopenButton(app, opts));
+    return wrapper;
+  }
+
+  if (crmMatch.status === "single") {
+    wrapper.append(
+      buildSingleMatchPrompt(
+        app,
+        opts,
+        rawValue,
+        crmMatch.candidate,
+        "extension_crm_username_match",
+        `CRM username ${crmMatch.username} → ${formatAgentLabel(crmMatch.candidate)}?`,
+      ),
+    );
     return wrapper;
   }
 
@@ -195,6 +213,8 @@ function buildSingleMatchPrompt(
   opts: SalesRepControlOptions,
   rawValue: string,
   candidate: Agent,
+  source: ReceiverAgentSource = "extension_match",
+  promptText?: string,
 ): HTMLElement {
   const row = document.createElement("div");
   row.className = "sales-rep__row";
@@ -202,7 +222,7 @@ function buildSingleMatchPrompt(
 
   const question = document.createElement("span");
   question.className = "status-text";
-  question.textContent = `Granot: ${rawValue} → ${candidate.name}?`;
+  question.textContent = promptText ?? `Granot: ${rawValue} → ${formatAgentLabel(candidate)}?`;
   row.append(question);
 
   const yes = document.createElement("button");
@@ -213,7 +233,7 @@ function buildSingleMatchPrompt(
   yes.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    void linkAgentToRow(app, opts, candidate, "extension_match", rawValue);
+    void linkAgentToRow(app, opts, candidate, source, rawValue);
   });
   row.append(yes);
 
@@ -254,9 +274,7 @@ function buildMultiMatchList(
     const button = document.createElement("button");
     button.type = "button";
     button.className = "btn-secondary btn-sm";
-    button.textContent = candidate.active
-      ? candidate.name
-      : `${candidate.name} (inactive)`;
+    button.textContent = formatAgentLabel(candidate);
     button.disabled = busy;
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -427,7 +445,11 @@ function buildSearchResults(
   }
 
   const matches = app.state.agents.items
-    .filter((agent) => agent.name.toLowerCase().includes(query))
+    .filter(
+      (agent) =>
+        agent.name.toLowerCase().includes(query) ||
+        agent.granot_crm_username?.toLowerCase().includes(query),
+    )
     .slice(0, 8);
 
   if (matches.length === 0) {
@@ -442,7 +464,7 @@ function buildSearchResults(
     button.type = "button";
     button.className = "btn-secondary btn-sm";
     button.style.justifyContent = "flex-start";
-    button.textContent = agent.active ? agent.name : `${agent.name} (inactive)`;
+    button.textContent = formatAgentLabel(agent);
     button.disabled = busy;
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -466,6 +488,17 @@ function openDialog(app: AppContext, rowKey: string, prefillName: string): void 
 function closeDialog(app: AppContext, rowKey: string): void {
   app.state.agents.dialogs.delete(rowKey);
   app.state.agents.closedRowKeys.add(rowKey);
+}
+
+function formatAgentLabel(agent: Agent): string {
+  const parts = [agent.name];
+  if (agent.granot_crm_username) {
+    parts.push(`CRM ${agent.granot_crm_username}`);
+  }
+  if (!agent.active) {
+    parts.push("inactive");
+  }
+  return parts.join(" · ");
 }
 
 async function linkAgentToRow(

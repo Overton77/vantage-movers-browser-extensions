@@ -10,6 +10,8 @@ export type CallLeadEnrichmentRowPayload = {
   customer?: string;
   /** Granot CRM phone — used for server-side matching only; never overwrites CallLead.phone_number. */
   phone?: string;
+  /** Raw Granot `user`/`rep` value for receiver Agent CRM username matching. */
+  granot_crm_username?: string;
   email?: string;
   from_zip?: string;
   to_zip?: string;
@@ -27,6 +29,8 @@ export type BookedCallLeadReconciliationRowPayload = {
   customer?: string;
   /** Granot CRM phone — used for server-side matching only; never overwrites CallLead.phone_number. */
   phone?: string;
+  /** Raw Granot `user`/`rep` value for receiver Agent CRM username matching. */
+  granot_crm_username?: string;
   email?: string;
   from_zip?: string;
   to_zip?: string;
@@ -59,6 +63,7 @@ export type CallLeadEnrichmentResult = {
   has_booking?: boolean;
   /** Name snapshot of the agent already linked as `receiver_agent`, if any. */
   receiver_agent_name_snapshot?: string;
+  receiver_agent_granot_crm_username?: string;
   changes: string[];
   warnings: string[];
   parsed?: Record<string, unknown>;
@@ -91,6 +96,7 @@ export type BookedCallLeadReconciliationResult = {
   has_booking?: boolean;
   /** Name snapshot of the agent already linked as `receiver_agent`, if any. */
   receiver_agent_name_snapshot?: string;
+  receiver_agent_granot_crm_username?: string;
   changes: string[];
   warnings: string[];
   parsed?: Record<string, unknown>;

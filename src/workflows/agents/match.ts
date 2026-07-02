@@ -7,6 +7,39 @@ export type AgentMatchResult = {
   candidates: Agent[];
 };
 
+export type CrmUsernameAgentMatchResult =
+  | {
+      status: "single";
+      username: string;
+      candidate: Agent;
+    }
+  | {
+      status: "none";
+      username?: string;
+    };
+
+export function normalizeGranotCrmUsername(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toUpperCase();
+  return normalized || undefined;
+}
+
+export function matchAgentByCrmUsername(
+  rawValue: string | undefined,
+  agents: Agent[],
+): CrmUsernameAgentMatchResult {
+  const username = normalizeGranotCrmUsername(rawValue);
+  if (!username) {
+    return { status: "none" };
+  }
+
+  const candidate = agents.find(
+    (agent) => normalizeGranotCrmUsername(agent.granot_crm_username) === username,
+  );
+  return candidate
+    ? { status: "single", username, candidate }
+    : { status: "none", username };
+}
+
 /**
  * Case-insensitive match of `rawValue` (Granot's `user`/`rep` column text)
  * against the first whitespace-delimited token of each agent's `name` (e.g.

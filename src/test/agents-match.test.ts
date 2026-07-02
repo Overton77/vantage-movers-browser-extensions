@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { Agent } from "../api/agents";
-import { matchAgentsByFirstName } from "../workflows/agents/match";
+import {
+  matchAgentByCrmUsername,
+  matchAgentsByFirstName,
+} from "../workflows/agents/match";
 
 function makeAgent(overrides: Partial<Agent> = {}): Agent {
   return {
@@ -64,5 +67,37 @@ describe("matchAgentsByFirstName", () => {
 
     expect(result.status).toBe("single");
     expect(result.candidates[0].active).toBe(false);
+  });
+});
+
+describe("matchAgentByCrmUsername", () => {
+  it("matches by trimmed uppercase CRM username, including inactive agents", () => {
+    const agents = [
+      makeAgent({ id: "a1", _id: "a1", name: "Nick Smith", granot_crm_username: "NICK" }),
+      makeAgent({
+        id: "a2",
+        _id: "a2",
+        name: "Mike M",
+        active: false,
+        granot_crm_username: "MIKEM",
+      }),
+    ];
+
+    const result = matchAgentByCrmUsername(" mikem ", agents);
+
+    expect(result.status).toBe("single");
+    if (result.status === "single") {
+      expect(result.username).toBe("MIKEM");
+      expect(result.candidate.id).toBe("a2");
+      expect(result.candidate.active).toBe(false);
+    }
+  });
+
+  it("returns the normalized username when no Agent matches", () => {
+    const result = matchAgentByCrmUsername(" JACOB ", [
+      makeAgent({ granot_crm_username: "NICK" }),
+    ]);
+
+    expect(result).toEqual({ status: "none", username: "JACOB" });
   });
 });
