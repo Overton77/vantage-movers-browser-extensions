@@ -13,7 +13,6 @@
 //   - overlapping cycles are prevented by the storage lock
 import {
   getFormLeadById,
-  listAgents,
   previewBookedCallLeadReconciliation,
   previewCallLeadEnrichment,
   searchFormLeads,
@@ -21,9 +20,11 @@ import {
   syncCallLeadEnrichment,
   updateFormLead,
 } from "../utils/api";
+import { loadAgentsForReceiverMatching } from "../workflows/agents/loadForReceiverMatching";
 import type { ListWorkspaceId } from "../app/state";
 import {
   isDirectFormLeadRowSyncable,
+  isReceiverAgentEnrichmentSyncable,
   isRowSyncable,
   rowToSyncCandidate,
 } from "../workflows/form-leads/payloads";
@@ -232,7 +233,8 @@ async function runFormLeadsCycle(
   const syncableRows = rows.filter((row) =>
     allowFallback
       ? isRowSyncable(row, previews.get(row.id))
-      : isDirectFormLeadRowSyncable(row),
+      : isDirectFormLeadRowSyncable(row) ||
+        isReceiverAgentEnrichmentSyncable(row, previews.get(row.id)),
   );
 
   if (settings.safety.previewOnly) {
@@ -273,18 +275,6 @@ async function runFormLeadsCycle(
     message: buildCycleSummary("Form Leads", syncableRows.length, counts),
     details,
   };
-}
-
-async function loadAgentsForReceiverMatching() {
-  try {
-    return await listAgents({ includeInactive: true });
-  } catch (err) {
-    console.warn(
-      "[Granot Sync] Could not load Agents for CRM username receiver matching.",
-      err,
-    );
-    return [];
-  }
 }
 
 function formLeadPreviewToDetail(

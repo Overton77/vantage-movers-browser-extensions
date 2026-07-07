@@ -88,20 +88,48 @@ export function isFallbackSyncable(
   );
 }
 
+/** True when Vantage found a lead that can receive receiver_agent enrichment. */
+export function isReceiverAgentEnrichmentSyncable(
+  row: FollowUpRow,
+  preview?: FormLeadRowPreview,
+): boolean {
+  return Boolean(
+    row.salesRepRaw?.trim() &&
+      preview?.matchMethod !== "none" &&
+      (preview?.resolvedVantageId || preview?.current?._id),
+  );
+}
+
 /** True when a row has a valid ref_no and prior 1/5 (direct Mongo id sync). */
 export function isDirectFormLeadRowSyncable(row: FollowUpRow): boolean {
   return isSyncableRow(row) && isFormLeadPriorSyncable(row.prior);
 }
 
-/** True when a row can be synced either by direct id or by a confident fallback match. */
+/**
+ * True when a row can be synced either by quote/cubic rules or by receiver_agent
+ * enrichment against a Vantage lead found during preview.
+ */
 export function isRowSyncable(
   row: FollowUpRow,
   preview?: FormLeadRowPreview,
 ): boolean {
-  if (!isFormLeadPriorSyncable(row.prior)) {
-    return false;
-  }
-  return isSyncableRow(row) || isFallbackSyncable(row, preview);
+  const fieldSyncable =
+    isFormLeadPriorSyncable(row.prior) &&
+    (isSyncableRow(row) || isFallbackSyncable(row, preview));
+  return fieldSyncable || isReceiverAgentEnrichmentSyncable(row, preview);
+}
+
+/** Selected rows that are eligible for sync (used by Sync Selected and auto-sync). */
+export function filterSelectedSyncableRows(
+  rows: FollowUpRow[],
+  selectedRowIds: ReadonlySet<string>,
+  previews: ReadonlyMap<string, FormLeadRowPreview>,
+): FollowUpRow[] {
+  return rows.filter(
+    (row) =>
+      selectedRowIds.has(row.id) &&
+      isRowSyncable(row, previews.get(row.id)),
+  );
 }
 
 export function rowToSyncCandidate(
@@ -109,18 +137,21 @@ export function rowToSyncCandidate(
   preview?: FormLeadRowPreview,
 ): LeadSyncCandidate {
   const isFallback = preview?.matchMethod === "phone_and_email";
-  const quoted = isFallback
-    ? row.quoted ?? deriveQuotedFromPrior(row.prior)
-    : row.quoted;
+  const canSyncLeadFields = isFormLeadPriorSyncable(row.prior);
+  const quoted = canSyncLeadFields
+    ? isFallback
+      ? row.quoted ?? deriveQuotedFromPrior(row.prior)
+      : row.quoted
+    : undefined;
   return {
     id: row.id,
     refNo: row.refNo,
     prior: row.prior,
     quoted,
-    cubicFeet: isCubicFeetSyncable(row.prior) ? row.cubicFeet : undefined,
+    cubicFeet: canSyncLeadFields && isCubicFeetSyncable(row.prior) ? row.cubicFeet : undefined,
     salesRepRaw: row.salesRepRaw,
     status: row.status,
-    vantageId: isFallback ? preview?.resolvedVantageId : row.refNo,
+    vantageId: preview?.resolvedVantageId ?? row.refNo,
   };
 }
 
@@ -129,7 +160,7 @@ export function buildFormLeadUpdatePayload(
   current: { quoted?: boolean; cubic_feet?: number },
 ): FormLeadUpdatePayload {
   const payload: FormLeadUpdatePayload = {};
-  if (current.quoted !== candidate.quoted) {
+  if (typeof candidate.quoted === "boolean" && current.quoted !== candidate.quoted) {
     payload.quoted = candidate.quoted;
   }
   const cubicFeet = resolveSyncableCubicFeet(candidate);
@@ -154,7 +185,10 @@ export function buildFormLeadSyncPayload(
 }
 
 export function buildUnchangedMessage(candidate: LeadSyncCandidate): string {
-  const parts = [`Already quoted=${candidate.quoted}`];
+  const parts =
+    typeof candidate.quoted === "boolean"
+      ? [`Already quoted=${candidate.quoted}`]
+      : ["No quote/cubic update available"];
   const cubicFeet = resolveSyncableCubicFeet(candidate);
   if (cubicFeet !== undefined) {
     parts.push(`cubic_feet=${cubicFeet}`);

@@ -5,9 +5,11 @@ import {
   buildFormLeadUpdatePayload,
   buildUnchangedMessage,
   buildUpdatedMessage,
+  filterSelectedSyncableRows,
   isDirectFormLeadRowSyncable,
   isFallbackSyncable,
   isFormLeadPriorSyncable,
+  isReceiverAgentEnrichmentSyncable,
   isRowSyncable,
   isSyncableRow,
   rowToSyncCandidate,
@@ -133,6 +135,25 @@ describe("isRowSyncable", () => {
     ).toBe(false);
   });
 
+  it("is true for a found row with a CRM username even when priority is not field-syncable", () => {
+    const row = makeRow({
+      prior: "2",
+      status: "unsupported_prior",
+      quoted: undefined,
+      salesRepRaw: "MIKEM",
+    });
+    const preview = {
+      state: "idempotent" as const,
+      changes: [],
+      message: "",
+      matchMethod: "mongo_id" as const,
+      resolvedVantageId: "6a1743a401a95dbdc5bd8797",
+    };
+
+    expect(isReceiverAgentEnrichmentSyncable(row, preview)).toBe(true);
+    expect(isRowSyncable(row, preview)).toBe(true);
+  });
+
   it("is true for prior 1 direct rows", () => {
     expect(isRowSyncable(makeRow({ prior: "1" }))).toBe(true);
   });
@@ -214,6 +235,18 @@ describe("buildFormLeadUpdatePayload", () => {
     expect(payload).toEqual({ quoted: true });
   });
 
+  it("omits quoted when the candidate is receiver-only", () => {
+    const candidate = makeCandidate({
+      quoted: undefined,
+      cubicFeet: undefined,
+    });
+    const payload = buildFormLeadUpdatePayload(candidate, {
+      quoted: true,
+      cubic_feet: 100,
+    });
+    expect(payload).toEqual({});
+  });
+
   it("omits cubic_feet when prior is 0 even if cubicFeet is set", () => {
     const candidate = makeCandidate({
       prior: "0",
@@ -266,6 +299,50 @@ describe("buildFormLeadSyncPayload", () => {
         makeCandidate({ prior: "0", quoted: false, cubicFeet: 300 }),
       ),
     ).toEqual({ quoted: false });
+  });
+});
+
+describe("filterSelectedSyncableRows", () => {
+  it("returns only selected rows that pass isRowSyncable", () => {
+    const syncable = makeRow({ id: "syncable" });
+    const notSelected = makeRow({ id: "other" });
+    const notQuoted = makeRow({ id: "prior0", prior: "0", quoted: false });
+    const rows = [syncable, notSelected, notQuoted];
+    const selected = new Set(["syncable", "prior0"]);
+
+    expect(
+      filterSelectedSyncableRows(rows, selected, new Map()).map((row) => row.id),
+    ).toEqual(["syncable"]);
+  });
+
+  it("includes selected receiver-enrichment rows even when priority is unsupported", () => {
+    const receiverOnly = makeRow({
+      id: "receiver-only",
+      prior: "2",
+      status: "unsupported_prior",
+      quoted: undefined,
+      salesRepRaw: "MIKEM",
+    });
+    const selected = new Set(["receiver-only"]);
+
+    expect(
+      filterSelectedSyncableRows(
+        [receiverOnly],
+        selected,
+        new Map([
+          [
+            "receiver-only",
+            {
+              state: "idempotent",
+              changes: [],
+              message: "",
+              matchMethod: "mongo_id",
+              resolvedVantageId: "resolved-id",
+            },
+          ],
+        ]),
+      ).map((row) => row.id),
+    ).toEqual(["receiver-only"]);
   });
 });
 

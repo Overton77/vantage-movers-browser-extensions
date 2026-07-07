@@ -28,8 +28,11 @@ export function buildFormLeadRowPreview(
     : row.quoted;
 
   const hasBooking = Boolean(current.booked);
+  const fieldSyncable = isFormLeadPriorSyncable(row.prior);
   const quotedDiffers =
-    typeof intendedQuoted === "boolean" && current.quoted !== intendedQuoted;
+    fieldSyncable &&
+    typeof intendedQuoted === "boolean" &&
+    current.quoted !== intendedQuoted;
   // cubic_feet only syncs for prior 1/5, so a prior-0 row never reports a
   // cubic_feet change even if the parsed value differs from Vantage.
   const cubicDiffers =
@@ -47,13 +50,17 @@ export function buildFormLeadRowPreview(
   }
 
   const resolvedVantageId = current._id;
+  const disabledFieldSyncNote = fieldSyncable
+    ? undefined
+    : ` Prior ${row.prior || "blank"} is not quote/cubic syncable; sync can still update receiver_agent when the CRM username matches an Agent.`;
 
   if (isFallback) {
     const bookingNote = hasBooking
       ? ` Booking attached (booking ${String(current.booked)}); the booking link is preserved.`
       : "";
-    const changeNote =
-      changes.length === 0
+    const changeNote = disabledFieldSyncNote
+      ? disabledFieldSyncNote
+      : changes.length === 0
         ? " Sync is idempotent (no fields change)."
         : ` Sync will change ${changes.join(" and ")}.`;
     return {
@@ -75,7 +82,9 @@ export function buildFormLeadRowPreview(
       matchMethod,
       resolvedVantageId,
       message:
-        changes.length === 0
+        disabledFieldSyncNote
+          ? `Found form lead by ref_no; it has a booking attached (booking ${String(current.booked)}).${disabledFieldSyncNote}`
+          : changes.length === 0
           ? `Found form lead by ref_no; it has a booking attached (booking ${String(current.booked)}). Running sync is idempotent (no fields change).`
           : `Found form lead by ref_no; it has a booking attached (booking ${String(current.booked)}). Running sync will refresh ${changes.join(", ")} on the form lead. The booking link is preserved.`,
     };
@@ -89,7 +98,9 @@ export function buildFormLeadRowPreview(
       matchMethod,
       resolvedVantageId,
       message:
-        "Found form lead by ref_no. No booking attached and quoted + cubic_feet already match the Granot row — sync is idempotent.",
+        disabledFieldSyncNote
+          ? `Found form lead by ref_no. No booking attached.${disabledFieldSyncNote}`
+          : "Found form lead by ref_no. No booking attached and quoted + cubic_feet already match the Granot row — sync is idempotent.",
     };
   }
 
@@ -111,7 +122,7 @@ export function buildConflictResolvedFallbackPreview(
 ): FormLeadRowPreview {
   const base = buildFormLeadRowPreview(row, current, "phone_and_email");
   const changeNote = !isFormLeadPriorSyncable(row.prior)
-    ? ` Prior ${row.prior} is not syncable (only 1 and 5 map to quoted), so sync is disabled.`
+    ? ` Prior ${row.prior} is not quote/cubic syncable; sync can still update receiver_agent when the CRM username matches an Agent.`
     : base.changes.length === 0
       ? " Sync is idempotent (no fields change)."
       : ` Sync will change ${base.changes.join(" and ")}.`;

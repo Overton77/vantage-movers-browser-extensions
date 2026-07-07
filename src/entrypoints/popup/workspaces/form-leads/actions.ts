@@ -5,17 +5,18 @@
 // Extracted from `popup/main.ts` in Unit 07.
 import {
   getFormLeadById,
-  listAgents,
   searchFormLeads,
   updateFormLead,
 } from "../../../../utils/api";
 import {
+  filterSelectedSyncableRows,
   isRowSyncable,
   rowToSyncCandidate,
 } from "../../../../workflows/form-leads/payloads";
 import { previewFormLeadRows as runFormLeadPreview } from "../../../../workflows/form-leads/preview";
 import { scanFollowUpRows } from "../../../../workflows/form-leads/scan";
 import { syncLeadCandidates as runSyncLeadCandidates } from "../../../../workflows/form-leads/sync";
+import { resolveAgentsForReceiverMatching } from "../../../../workflows/agents/loadForReceiverMatching";
 import type {
   FollowUpRow,
   ParseResponse,
@@ -29,13 +30,15 @@ import { renderFormLeads, renderFormLeadsLogTables } from "./render";
 
 export async function scanFollowUpTable(
   app: AppContext,
-  options: { quiet: boolean; awaitPreview?: boolean },
+  options: { quiet: boolean; awaitPreview?: boolean; manageBusy?: boolean },
 ): Promise<boolean> {
   const { dom } = app;
   if (!options.quiet) {
     setStatus(dom, "Scanning Booked Jobs / Follow Up Estimates…");
   }
-  setBusy(app, true);
+  if (options.manageBusy !== false) {
+    setBusy(app, true);
+  }
 
   try {
     const { response, syncableRowIds } = await scanFollowUpRows({
@@ -106,7 +109,9 @@ export async function scanFollowUpTable(
     );
     return false;
   } finally {
-    setBusy(app, false);
+    if (options.manageBusy !== false) {
+      setBusy(app, false);
+    }
   }
 }
 
@@ -137,6 +142,7 @@ export async function previewFormLeadRows(
 export async function syncRows(
   app: AppContext,
   rows: FollowUpRow[],
+  options: { manageBusy?: boolean } = {},
 ): Promise<SyncCounts | undefined> {
   const { dom } = app;
   const previews = app.state.formLeads.previews;
@@ -148,37 +154,44 @@ export async function syncRows(
     return undefined;
   }
 
-  setBusy(app, true);
+  if (options.manageBusy !== false) {
+    setBusy(app, true);
+  }
   setStatus(dom, `Syncing ${syncableRows.length} row(s)…`);
 
-  let agents = app.state.agents.items;
   try {
-    if (!app.state.agents.loaded) {
-      agents = await listAgents({ includeInactive: true });
-      app.state.agents.items = agents;
-      app.state.agents.loaded = true;
-      app.state.agents.error = undefined;
+    const agents = await resolveAgentsForReceiverMatching(app.state.agents);
+
+    const results = await runSyncLeadCandidates(
+      syncableRows,
+      { getFormLeadById, updateFormLead, agents },
+      (id, result) => {
+        app.state.formLeads.syncResults.set(id, result);
+        if (result.current) {
+          const preview = app.state.formLeads.previews.get(id);
+          if (preview) {
+            app.state.formLeads.previews.set(id, {
+              ...preview,
+              current: result.current,
+              resolvedVantageId: result.current._id,
+            });
+          }
+        }
+        renderFormLeads(app);
+      },
+    );
+
+    setStatus(
+      dom,
+      `Sync complete. Updated ${results.updated}, unchanged ${results.unchanged}, failed ${results.failed}.`,
+    );
+    return results;
+  } finally {
+    if (options.manageBusy !== false) {
+      setBusy(app, false);
     }
-  } catch (err) {
-    app.state.agents.error = err instanceof Error ? err.message : String(err);
+    renderFormLeads(app);
   }
-
-  const results = await runSyncLeadCandidates(
-    syncableRows,
-    { getFormLeadById, updateFormLead, agents },
-    (id, result) => {
-      app.state.formLeads.syncResults.set(id, result);
-      renderFormLeads(app);
-    },
-  );
-
-  setStatus(
-    dom,
-    `Sync complete. Updated ${results.updated}, unchanged ${results.unchanged}, failed ${results.failed}.`,
-  );
-  setBusy(app, false);
-  renderFormLeads(app);
-  return results;
 }
 
 export async function openFormLeadsLogTables(app: AppContext): Promise<void> {

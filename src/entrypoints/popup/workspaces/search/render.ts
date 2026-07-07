@@ -90,6 +90,7 @@ function renderSearchResults(app: AppContext): void {
 
 function buildFormLeadCard(lead: FormLeadCard): HTMLDivElement {
   const chips: HTMLSpanElement[] = [];
+  const sourceDisplay = sourceDisplayLabel(lead);
   if (lead.ref_no) chips.push(compactChip("ref_no", lead.ref_no));
   if (typeof lead.quoted === "boolean") {
     chips.push(compactChip("quoted", String(lead.quoted)));
@@ -102,12 +103,14 @@ function buildFormLeadCard(lead: FormLeadCard): HTMLDivElement {
     kind: "Form Lead",
     id: lead._id,
     name: lead.name,
-    source_company: lead.source_company,
+    source_company: sourceDisplay,
     chips,
     fields: {
       phone: lead.phone_number ?? "",
       email: lead.email ?? "",
+      source: sourceDisplay,
       source_company: lead.source_company ?? "",
+      source_granularity_key: lead.source_granularity_key ?? "",
       ref_no: lead.ref_no ?? "",
       receiver_agent: lead.receiver_agent_name_snapshot ?? "",
       receiver_crm_username: lead.receiver_agent_granot_crm_username ?? "",
@@ -120,6 +123,7 @@ function buildFormLeadCard(lead: FormLeadCard): HTMLDivElement {
 
 function buildCallLeadCard(lead: CallLeadCard): HTMLDivElement {
   const chips: HTMLSpanElement[] = [];
+  const sourceDisplay = sourceDisplayLabel(lead);
   if (lead.job_no) chips.push(compactChip("job_no", lead.job_no));
   if (typeof lead.cubic_feet === "number") {
     chips.push(compactChip("cubic_feet", String(lead.cubic_feet)));
@@ -129,12 +133,14 @@ function buildCallLeadCard(lead: CallLeadCard): HTMLDivElement {
     kind: "Call Lead",
     id: lead._id,
     name: lead.name,
-    source_company: lead.source_company,
+    source_company: sourceDisplay,
     chips,
     fields: {
       phone: lead.phone_number ?? "",
       email: lead.email ?? "",
+      source: sourceDisplay,
       source_company: lead.source_company ?? "",
+      source_granularity_key: lead.source_granularity_key ?? "",
       job_no: lead.job_no ?? "",
       receiver_agent: lead.receiver_agent_name_snapshot ?? "",
       receiver_crm_username: lead.receiver_agent_granot_crm_username ?? "",
@@ -229,4 +235,14 @@ function formatDate(value?: string | Date): string {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleDateString();
+}
+
+function sourceDisplayLabel(lead: FormLeadCard | CallLeadCard): string {
+  return (
+    lead.crm_source_label_snapshot ||
+    lead.source_granularity_label_snapshot ||
+    lead.source_company_label_snapshot ||
+    lead.source_company ||
+    ""
+  );
 }

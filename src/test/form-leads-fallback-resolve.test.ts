@@ -91,6 +91,31 @@ describe("pickResolvableFallbackMatch", () => {
     expect(resolution?.reason).toContain("Top10 Forms");
   });
 
+  it.each([
+    ["main site forms", "main_site"],
+    ["Main Site Inbounds", "main_site"],
+    ["Get Movers Forms", "get_movers_leads"],
+    ["getmovers inbounds", "get_movers_leads"],
+    ["BestRelocation Forms", "best_relocation_leads"],
+    ["best relocation inbounds", "best_relocation_leads"],
+    ["TBM Prime Inbounds", "tbm_prime_leads"],
+    ["10 best forms", "tbm_leads"],
+  ])("resolves Granot source label %s case-insensitively", (source, sourceCompany) => {
+    const resolution = pickResolvableFallbackMatch(
+      makeRow({ refNo: "different-ref", source }),
+      [
+        makeMatch({ ref_no: "Mob_a", source_company: sourceCompany }),
+        makeMatch({
+          _id: "6a315643c439303a5bc16b0e",
+          ref_no: "Mob_b",
+          source_company: "top10_leads",
+        }),
+      ],
+    );
+
+    expect(resolution?.match.source_company).toBe(sourceCompany);
+  });
+
   it("prefers a unique quoted alignment with Granot prior", () => {
     const resolution = pickResolvableFallbackMatch(
       makeRow({ refNo: "different-ref", source: "Unknown Source", prior: "1" }),

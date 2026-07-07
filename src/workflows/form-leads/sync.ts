@@ -34,14 +34,6 @@ export async function syncLeadCandidates(
   let failed = 0;
 
   for (const candidate of candidates) {
-    if (typeof candidate.quoted !== "boolean") {
-      onResult(candidate.id, {
-        status: "skipped",
-        message: "Missing quoted target",
-      });
-      continue;
-    }
-
     // Use the resolved Vantage `_id` for fallback matches; falls back to the
     // Granot `refNo` for direct id matches. Never PATCH the Granot refNo string
     // once a fallback match has resolved a different Vantage id.
@@ -58,18 +50,41 @@ export async function syncLeadCandidates(
         continue;
       }
 
-      const receiverMatch = buildReceiverAgentUpdate(candidate, current, context.agents);
-      const updatePayload = {
-        ...buildFormLeadUpdatePayload(candidate, current),
-        ...receiverMatch.payload,
+      const fieldUpdates = buildFormLeadUpdatePayload(candidate, current);
+      const receiverMatch = buildReceiverAgentUpdate(
+        candidate,
+        current,
+        context.agents,
+      );
+      const changedPayload: FormLeadUpdatePayload = {
+        ...fieldUpdates,
+        ...(receiverMatch.payload ?? {}),
       };
-      const syncPayload =
-        Object.keys(updatePayload).length > 0
-          ? updatePayload
-          : buildFormLeadSyncPayload(candidate);
-      await context.updateFormLead(targetId, syncPayload);
+      const hasChanges = Object.keys(changedPayload).length > 0;
+      const hasLeadFieldSyncTarget = typeof candidate.quoted === "boolean";
 
-      if (Object.keys(updatePayload).length === 0) {
+      if (!hasChanges && !hasLeadFieldSyncTarget) {
+        onResult(candidate.id, {
+          status: "skipped",
+          message: appendReceiverMessage(
+            "Missing quoted target",
+            receiverMatch.message,
+          ),
+        });
+        continue;
+      }
+
+      const syncPayload: FormLeadUpdatePayload = {
+        ...(hasLeadFieldSyncTarget ? buildFormLeadSyncPayload(candidate) : {}),
+        ...fieldUpdates,
+        ...(receiverMatch.payload ?? {}),
+      };
+      const updatedCurrent = reflectReceiverAgentUpdate(
+        await context.updateFormLead(targetId, syncPayload),
+        receiverMatch,
+      );
+
+      if (!hasChanges) {
         unchanged += 1;
         onResult(candidate.id, {
           status: "unchanged",
@@ -77,15 +92,17 @@ export async function syncLeadCandidates(
             `${buildUnchangedMessage(candidate)}; sync request sent anyway.`,
             receiverMatch.message,
           ),
+          current: updatedCurrent,
         });
       } else {
         updated += 1;
         onResult(candidate.id, {
           status: "updated",
           message: appendReceiverMessage(
-            buildUpdatedMessage(updatePayload),
+            buildUpdatedMessage(changedPayload),
             receiverMatch.message,
           ),
+          current: updatedCurrent,
         });
       }
     } catch (err) {
@@ -104,7 +121,12 @@ function buildReceiverAgentUpdate(
   candidate: LeadSyncCandidate,
   current: FormLeadLookup,
   agents: Agent[] | undefined,
-): { payload?: FormLeadUpdatePayload; message?: string } {
+): {
+  payload?: FormLeadUpdatePayload;
+  message?: string;
+  agentName?: string;
+  crmUsername?: string;
+} {
   const match = matchAgentByCrmUsername(candidate.salesRepRaw, agents ?? []);
   if (!match.username) {
     return {};
@@ -119,6 +141,7 @@ function buildReceiverAgentUpdate(
   if (match.status === "none") {
     return {
       message: `No Agent matched CRM username ${match.username}.`,
+      crmUsername: match.username,
     };
   }
 
@@ -130,9 +153,27 @@ function buildReceiverAgentUpdate(
       receiver_agent_source_value: match.username,
     },
     message: `Matched ${activeLabel} Agent "${match.candidate.name}" by CRM username ${match.username}.`,
+    agentName: match.candidate.name,
+    crmUsername: match.username,
   };
 }
 
 function appendReceiverMessage(message: string, receiverMessage: string | undefined): string {
   return receiverMessage ? `${message} ${receiverMessage}` : message;
+}
+
+function reflectReceiverAgentUpdate(
+  lead: FormLeadLookup,
+  receiverMatch: { agentName?: string; crmUsername?: string },
+): FormLeadLookup {
+  if (!receiverMatch.agentName) {
+    return lead;
+  }
+  return {
+    ...lead,
+    receiver_agent_name_snapshot:
+      lead.receiver_agent_name_snapshot ?? receiverMatch.agentName,
+    receiver_agent_source_value:
+      lead.receiver_agent_source_value ?? receiverMatch.crmUsername,
+  };
 }

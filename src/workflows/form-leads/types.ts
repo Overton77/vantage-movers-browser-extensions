@@ -95,6 +95,8 @@ export type CurrentLeadPreview = {
 export type RowSyncResult = {
   status: "updated" | "unchanged" | "failed" | "skipped";
   message: string;
+  /** Latest Vantage form lead returned by sync, used to refresh row state. */
+  current?: FormLeadLookup;
 };
 
 /**

@@ -1,7 +1,7 @@
 // Centralized popup event wiring. Binds every sidebar, top-bar, and workspace
 // control to the workspace actions/renders. Bound once at boot so handlers are
 // never duplicated across re-renders. Extracted from `popup/main.ts` in Unit 07.
-import { isRowSyncable } from "../../../workflows/form-leads/payloads";
+import { filterSelectedSyncableRows, isRowSyncable } from "../../../workflows/form-leads/payloads";
 import {
   canSyncBookedCallReconciliationRow,
   canSyncCallEnrichmentRow,
@@ -101,8 +101,10 @@ export function attachEventHandlers(app: AppContext): void {
   dom.fl.syncSelected.addEventListener("click", () => {
     void syncRows(
       app,
-      state.formLeads.parsedRows.filter((row) =>
-        state.formLeads.selectedRowIds.has(row.id),
+      filterSelectedSyncableRows(
+        state.formLeads.parsedRows,
+        state.formLeads.selectedRowIds,
+        state.formLeads.previews,
       ),
     );
   });

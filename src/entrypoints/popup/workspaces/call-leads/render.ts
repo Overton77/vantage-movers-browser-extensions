@@ -4,7 +4,6 @@
 // panel. Extracted from `popup/main.ts` in Unit 07. Per-row Sync buttons
 // delegate to the workspace actions module.
 import { formatIntervalLabel } from "../../../../auto-sync/cycles";
-import { getSalesRepRaw } from "../../../../parsers/granot/call-leads";
 import {
   canSyncBookedCallReconciliationRow,
   canSyncCallEnrichmentRow,
@@ -14,10 +13,8 @@ import type {
   CallLeadPreviewRow,
 } from "../../../../workflows/call-leads/types";
 import type {
-  BookedCallLeadMatchMethod,
   BookedCallLeadReconciliationResult,
   CallLeadEnrichmentResult,
-  CallLeadMatchMethod,
 } from "../../../../utils/api";
 import type { AppContext } from "../../app/context";
 import { updateSidebarPulses } from "../../app/render";
@@ -25,11 +22,15 @@ import {
   buildCycleElement,
   buildLogGrid,
   buildTablePreviewAccordion,
-  callLeadResultBadge,
-  compactChip,
   fieldBlock,
+  rowStateCard,
+  summaryMetrics,
 } from "../../ui/components";
-import { buildSalesRepControl } from "../../ui/salesRep";
+import {
+  buildCallLeadCollapsedModel,
+  buildCallLeadExpandedSummary,
+  buildCallLeadScanMetrics,
+} from "../../ui/leadMessaging";
 import { syncBookedCallRows, syncCallRows } from "./actions";
 
 export function renderCallLeads(app: AppContext): void {
@@ -49,64 +50,10 @@ function renderCallLeadsSummary(app: AppContext): void {
     dom.cl.summary.textContent = "";
     return;
   }
-  const foundSections = cl.preview.sections.filter(
-    (section) => section.tableFound,
-  );
-  const followUp = cl.preview.sections.find(
-    (s) => s.key === "followUpEstimates",
-  );
-  const booked = cl.preview.sections.find((s) => s.key === "bookedJobs");
-  const followUpCount = followUp?.rows.length ?? 0;
-  const bookedCount = booked?.rows.length ?? 0;
-  const updateable = cl.enrichmentRows.filter(canSyncCallEnrichmentRow).length;
-  const bookedUpdateable = cl.bookedReconciliationRows.filter(
-    canSyncBookedCallReconciliationRow,
-  ).length;
-  const selected = cl.enrichmentRows.filter((row) =>
-    cl.selectedRowIds.has(row.payload.row_id),
-  ).length;
-
-  const byPhone =
-    cl.enrichmentRows.filter(
-      (row) =>
-        row.result?.match_method === "phone_only" ||
-        row.result?.match_method === "phone_and_job_no",
-    ).length +
-    cl.bookedReconciliationRows.filter(
-      (row) => row.result?.match_method === "phone_only",
-    ).length;
-  const byJobNo =
-    cl.enrichmentRows.filter(
-      (row) => row.result?.match_method === "job_no_only",
-    ).length +
-    cl.bookedReconciliationRows.filter(
-      (row) =>
-        row.result?.match_method === "job_no_only" ||
-        row.result?.match_method === "job_no_with_booking",
-    ).length;
-  const withBooking =
-    cl.enrichmentRows.filter((row) => row.result?.has_booking).length +
-    cl.bookedReconciliationRows.filter((row) => row.result?.has_booking).length;
-  const notFound =
-    cl.enrichmentRows.filter((row) => row.result?.status === "no_match")
-      .length +
-    cl.bookedReconciliationRows.filter(
-      (row) => row.result?.status === "no_match",
-    ).length;
-
-  const matchSummaryParts = [
-    byPhone > 0 ? `${byPhone} matched by phone` : "",
-    byJobNo > 0 ? `${byJobNo} matched by job_no` : "",
-    withBooking > 0 ? `${withBooking} with booking` : "",
-    notFound > 0 ? `${notFound} not found` : "",
-  ].filter(Boolean);
-
-  const matchSummary = matchSummaryParts.length
-    ? ` Matches: ${matchSummaryParts.join(", ")}.`
-    : "";
 
   dom.cl.summary.hidden = false;
-  dom.cl.summary.textContent = `${foundSections.length} table(s) found · ${followUpCount} follow-up row(s) · ${updateable} updateable · ${bookedCount} booked row(s) · ${bookedUpdateable} booked updateable · ${selected} selected.${matchSummary}`;
+  dom.cl.summary.textContent = "";
+  dom.cl.summary.append(summaryMetrics(buildCallLeadScanMetrics(cl)));
 }
 
 function renderCallLeadsRows(app: AppContext): void {
@@ -247,8 +194,6 @@ function buildBookedRowElement(
     onSync: reconciliation
       ? () => void syncBookedCallRows(app, [reconciliation.payload])
       : undefined,
-    matchMethod: reconciliation?.result?.match_method,
-    hasBooking: reconciliation?.result?.has_booking,
     selectable: false,
     leadId: reconciliation?.result?.call_lead_id,
     linkedName: reconciliation?.result?.receiver_agent_name_snapshot,
@@ -271,8 +216,6 @@ function buildCallLeadRowElement(
     onSync: enrichment
       ? () => void syncCallRows(app, [enrichment.payload])
       : undefined,
-    matchMethod: enrichment?.result?.match_method,
-    hasBooking: enrichment?.result?.has_booking,
     selectable: true,
     leadId: enrichment?.result?.call_lead_id,
     linkedName: enrichment?.result?.receiver_agent_name_snapshot,
@@ -297,16 +240,13 @@ function buildCallRowAccordion(
       | undefined;
     canSync: boolean;
     onSync?: () => void;
-    matchMethod?: CallLeadMatchMethod | BookedCallLeadMatchMethod;
-    hasBooking?: boolean;
     selectable: boolean;
     /** Resolved Vantage `_id` for the Sales Rep control; undefined hides it. */
     leadId?: string;
     linkedName?: string;
   },
 ): HTMLDetailsElement {
-  const { row, workflow, result, canSync, onSync, matchMethod, hasBooking } =
-    opts;
+  const { row, workflow, result, canSync, onSync } = opts;
   const cl = app.state.callLeads;
 
   const details = document.createElement("details");
@@ -341,34 +281,16 @@ function buildCallRowAccordion(
     summary.append(checkbox);
   }
 
-  const compact = document.createElement("span");
-  compact.className = "row-compact";
-
-  const titleEl = document.createElement("span");
-  titleEl.className = "row-title";
-  const displayNumber = row.values.no || String(row.rowIndex);
-  const jobNo = row.values.job_no ? ` ${row.values.job_no}` : "";
-  const customer = row.values.customer ? ` - ${row.values.customer}` : "";
-  titleEl.textContent = `#${displayNumber}${jobNo}${customer}`;
-  compact.append(titleEl);
-
-  for (const chip of buildCallLeadCompactChips(row, workflow)) {
-    compact.append(chip);
-  }
-
-  if (matchMethod) {
-    compact.append(buildCallLeadMatchChip(matchMethod, Boolean(hasBooking)));
-  }
-  summary.append(compact);
-
-  if (result) {
-    summary.append(callLeadResultBadge(result.status));
-  } else if (workflow === "booked") {
-    const badge = document.createElement("span");
-    badge.className = "badge muted";
-    badge.textContent = "booked";
-    summary.append(badge);
-  }
+  const rowKey = `call:${workflow}:${row.id}`;
+  const linkedName =
+    app.state.agents.linkedOverrides.get(rowKey) ?? opts.linkedName;
+  summary.append(
+    rowStateCard(
+      buildCallLeadCollapsedModel(row, workflow, result, canSync, {
+        linkedName,
+      }),
+    ),
+  );
 
   const actions = document.createElement("div");
   actions.className = "row-header__actions";
@@ -391,13 +313,13 @@ function buildCallRowAccordion(
   const body = document.createElement("div");
   body.className = "row__body";
 
-  if (result?.message) {
-    const banner = document.createElement("div");
-    banner.className = buildCallLeadResultBannerClass(result.status);
-    banner.style.marginBottom = "10px";
-    banner.textContent = result.message;
-    body.append(banner);
-  }
+  body.append(
+    rowStateCard(
+      buildCallLeadExpandedSummary(row, workflow, result, {
+        linkedName,
+      }),
+    ),
+  );
 
   const fieldGrid = document.createElement("div");
   fieldGrid.className = "field-grid";
@@ -409,16 +331,9 @@ function buildCallRowAccordion(
   if (result) {
     const metaParts = [
       result.call_lead_id ? `call lead: ${result.call_lead_id}` : undefined,
-      "matched_phone_number" in result && result.matched_phone_number
-        ? `matched phone: ${result.matched_phone_number}`
-        : undefined,
       "booking_id" in result && result.booking_id
         ? `booking: ${result.booking_id}`
         : undefined,
-      result.changes.length
-        ? `changes: ${result.changes.join(", ")}`
-        : undefined,
-      ...result.warnings,
     ].filter(Boolean) as string[];
     if (metaParts.length > 0) {
       const metaEl = document.createElement("div");
@@ -428,85 +343,8 @@ function buildCallRowAccordion(
     }
   }
 
-  const salesRep = buildSalesRepControl(app, {
-    rowKey: `call:${workflow}:${row.id}`,
-    leadKind: "call",
-    leadId: opts.leadId,
-    rawValue: getSalesRepRaw(row),
-    linkedName: opts.linkedName,
-    rerender: () => renderCallLeads(app),
-  });
-  if (salesRep) {
-    body.append(salesRep);
-  }
-
   details.append(body);
   return details;
-}
-
-function buildCallLeadCompactChips(
-  row: CallLeadPreviewRow,
-  workflow: "followUp" | "booked",
-): HTMLSpanElement[] {
-  const chips: HTMLSpanElement[] = [];
-  if (row.values.job_no) chips.push(compactChip("job_no", row.values.job_no));
-  if (row.values.phone) chips.push(compactChip("phone", row.values.phone));
-  if (row.values.est_cf) chips.push(compactChip("est_cf", row.values.est_cf));
-  if (workflow === "booked" && row.values.source) {
-    chips.push(compactChip("source", row.values.source));
-  }
-  return chips;
-}
-
-function buildCallLeadMatchChip(
-  method: CallLeadMatchMethod | BookedCallLeadMatchMethod,
-  hasBooking: boolean,
-): HTMLSpanElement {
-  const chip = document.createElement("span");
-  switch (method) {
-    case "phone_and_job_no":
-      chip.className = "match-chip";
-      chip.textContent = "by phone + job_no";
-      break;
-    case "phone_only":
-      chip.className = "match-chip is-phone";
-      chip.textContent = "by phone";
-      break;
-    case "job_no_only":
-      chip.className = "match-chip is-job";
-      chip.textContent = "by job_no";
-      break;
-    case "job_no_with_booking":
-      chip.className = "match-chip is-booking";
-      chip.textContent = "booking by job_no";
-      return chip;
-    case "none":
-    default:
-      chip.className = "match-chip is-missing";
-      chip.textContent = "not found";
-      return chip;
-  }
-  if (hasBooking) {
-    chip.textContent += " · has booking";
-    chip.classList.add("is-booking");
-  }
-  return chip;
-}
-
-function buildCallLeadResultBannerClass(status: string): string {
-  if (status === "updated") return "banner info";
-  if (status === "updateable") return "banner warn";
-  if (status === "unchanged") return "banner info";
-  if (
-    status === "failed" ||
-    status === "conflict" ||
-    status === "invalid" ||
-    status === "no_match" ||
-    status === "booking_missing"
-  ) {
-    return "banner error";
-  }
-  return "banner info";
 }
 
 export function renderCallLeadsHistory(app: AppContext): void {

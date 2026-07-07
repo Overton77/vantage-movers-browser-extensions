@@ -303,12 +303,20 @@
         margin: 0 0 4px;
         color: #0f172a;
       }
-      .workspace__header p {
+      .workspace__header p,
+      .workspace__intro {
         font-size: 12.5px;
         color: #475569;
         margin: 0;
         line-height: 1.45;
         max-width: 720px;
+      }
+      .workspace__intro {
+        padding-left: 18px;
+        line-height: 1.5;
+      }
+      .workspace__intro li + li {
+        margin-top: 4px;
       }
       .workspace__header-badge {
         display: inline-flex;
@@ -460,6 +468,33 @@
       .btn-row + .btn-row {
         margin-top: 8px;
       }
+      .control-panel {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+        gap: 12px;
+      }
+      .control-panel__group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+      }
+      .control-panel__label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #64748b;
+        margin: 0;
+      }
+      .control-panel__group .btn-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .control-panel__group .btn-row button {
+        width: 100%;
+        text-align: left;
+      }
 
       input,
       select {
@@ -556,6 +591,49 @@
         margin-bottom: 12px;
         color: #334155;
       }
+      .summary-metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+        gap: 8px;
+      }
+      .summary-metric {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #f8fafc;
+        padding: 8px 10px;
+        display: grid;
+        gap: 2px;
+      }
+      .summary-metric.is-good {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+      }
+      .summary-metric.is-warn {
+        background: #fffbeb;
+        border-color: #fde68a;
+      }
+      .summary-metric.is-bad {
+        background: #fef2f2;
+        border-color: #fecaca;
+      }
+      .summary-metric__label {
+        color: #64748b;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .summary-metric__value {
+        color: #0f172a;
+        font-size: 17px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+      .summary-metric__help {
+        color: #475569;
+        font-size: 11px;
+        line-height: 1.35;
+      }
 
       /* ============================================================
          Row list (selectable rows) — now collapsible accordions
@@ -617,6 +695,83 @@
         flex-wrap: wrap;
         flex: 1 1 auto;
         min-width: 0;
+      }
+      .row-state-card {
+        flex: 1 1 360px;
+        min-width: 220px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 7px 9px;
+        display: grid;
+        gap: 4px;
+      }
+      .row-state-card.is-good {
+        border-color: #bbf7d0;
+        background: #f0fdf4;
+      }
+      .row-state-card.is-warn {
+        border-color: #fde68a;
+        background: #fffbeb;
+      }
+      .row-state-card.is-bad {
+        border-color: #fecaca;
+        background: #fef2f2;
+      }
+      .row-state-card__title {
+        color: #0f172a;
+        font-size: 12.5px;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+      .row-state-card__line {
+        color: #334155;
+        font-size: 11.5px;
+        line-height: 1.35;
+      }
+      .row-state-card__chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 2px;
+      }
+      .state-chip {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        background: #f8fafc;
+        padding: 2px 7px;
+        font-size: 10.5px;
+        color: #334155;
+      }
+      .state-chip.is-good {
+        background: #dcfce7;
+        border-color: #bbf7d0;
+        color: #166534;
+      }
+      .state-chip.is-warn {
+        background: #fef3c7;
+        border-color: #fde68a;
+        color: #92400e;
+      }
+      .state-chip.is-bad {
+        background: #fee2e2;
+        border-color: #fecaca;
+        color: #991b1b;
+      }
+      .state-chip__label {
+        color: inherit;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        opacity: 0.82;
+        text-transform: uppercase;
+      }
+      .state-chip__value {
+        color: inherit;
+        font-weight: 700;
       }
       .row-compact__chip {
         display: inline-flex;
@@ -1343,17 +1498,17 @@
         >
           <div class="workspace__header">
             <div>
-              <h2>Form Leads — Quoted + Cubic Feet</h2>
-              <p>
-                Each row in the Granot <em>Follow Up Estimates</em> table is
-                matched to a Vantage form lead by <code>ref_no</code> (the
-                Mongo ID). For every match the popup tells you exactly what
-                will happen: lead with a booking attached (idempotent sync),
-                lead with no booking that already matches (idempotent sync),
-                or lead with no booking where <code>quoted</code> or
-                <code>cubic_feet</code> will change. Sync individually,
-                select-and-sync, or schedule via ScanAndSync.
-              </p>
+              <h2>Form Leads</h2>
+              <ul class="workspace__intro">
+                <li>
+                  Matches leads by <code>ref_no</code> (Mongo <code>_id</code>),
+                  with phone number and/or email as a fallback.
+                </li>
+                <li>
+                  <em>Booked Jobs</em> and <em>Follow Up Estimates</em> tables
+                  are scanned.
+                </li>
+              </ul>
             </div>
             <span
               id="form-leads-auto-badge"
@@ -1366,53 +1521,75 @@
 
           <div class="card">
             <h3 class="card__title">Actions</h3>
-            <div class="btn-row">
-              <button id="form-leads-scan" type="button">
-                Scan Follow Up Table
-              </button>
-              <button id="form-leads-log" class="btn-secondary" type="button">
-                📋 Log Tables
-              </button>
-            </div>
-            <div class="btn-row">
-              <button id="form-leads-sync-selected" type="button" disabled>
-                Sync Selected
-              </button>
-              <button id="form-leads-sync-all" type="button" disabled>
-                Sync All Supported
-              </button>
-              <button
-                id="form-leads-select-all"
-                class="btn-secondary"
-                type="button"
-                disabled
-              >
-                Select All
-              </button>
-              <button
-                id="form-leads-deselect-all"
-                class="btn-secondary"
-                type="button"
-                disabled
-              >
-                Deselect All
-              </button>
-              <button
-                id="form-leads-expand-all"
-                class="btn-secondary btn-sm"
-                type="button"
-                disabled
-              >
-                ▾ Expand All Rows
-              </button>
-              <button
-                id="form-leads-collapse-all"
-                class="btn-secondary btn-sm"
-                type="button"
-                disabled
-              >
-                ▸ Collapse All Rows
-              </button>
+            <div class="control-panel">
+              <div class="control-panel__group">
+                <p class="control-panel__label">Scan</p>
+                <div class="btn-row">
+                  <button id="form-leads-scan" type="button">
+                    Scan Follow Up Table
+                  </button>
+                  <button
+                    id="form-leads-log"
+                    class="btn-secondary"
+                    type="button"
+                  >
+                    📋 Log Tables
+                  </button>
+                </div>
+              </div>
+              <div class="control-panel__group">
+                <p class="control-panel__label">Sync</p>
+                <div class="btn-row">
+                  <button id="form-leads-sync-selected" type="button" disabled>
+                    Sync Selected
+                  </button>
+                  <button id="form-leads-sync-all" type="button" disabled>
+                    Sync All Supported
+                  </button>
+                </div>
+              </div>
+              <div class="control-panel__group">
+                <p class="control-panel__label">Selection</p>
+                <div class="btn-row">
+                  <button
+                    id="form-leads-select-all"
+                    class="btn-secondary"
+                    type="button"
+                    disabled
+                  >
+                    Select All
+                  </button>
+                  <button
+                    id="form-leads-deselect-all"
+                    class="btn-secondary"
+                    type="button"
+                    disabled
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+              <div class="control-panel__group">
+                <p class="control-panel__label">Rows</p>
+                <div class="btn-row">
+                  <button
+                    id="form-leads-expand-all"
+                    class="btn-secondary btn-sm"
+                    type="button"
+                    disabled
+                  >
+                    ▾ Expand All Rows
+                  </button>
+                  <button
+                    id="form-leads-collapse-all"
+                    class="btn-secondary btn-sm"
+                    type="button"
+                    disabled
+                  >
+                    ▸ Collapse All Rows
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1451,14 +1628,15 @@
                     diff is shown when you expand the row.
                   </li>
                   <li>
-                    <strong>invalid ref_no</strong> — The
-                    <code>ref_no</code> column is not a valid Mongo ID
-                    (typically "not provided" or empty).
+                    <strong>Granot ref_no did not resolve</strong> — The
+                    <code>ref_no</code> column did not point to a current
+                    Vantage form lead. The popup may still recover the row by
+                    phone and email.
                   </li>
                   <li>
-                    <strong>unsupported prior</strong> — The
-                    <code>prior</code> column is not 0 or 1 (e.g. booked at
-                    prior 5). Sync is not run automatically.
+                    <strong>Needs review</strong> — The row needs owner
+                    attention because the prior value, fallback result, or
+                    preview response does not give a clear sync target.
                   </li>
                 </ul>
                 <p>
@@ -1634,17 +1812,23 @@
         >
           <div class="workspace__header">
             <div>
-              <h2>Call Leads — Match by Phone or Job&nbsp;No</h2>
-              <p>
-                Granot's <em>Follow Up Estimates</em> and
-                <em>Booked Jobs</em> tables are reconciled into Vantage call
-                leads using the same matching rules: first by
-                <code>phone_number</code>, then by <code>job_no</code>. The
-                popup tells you which method matched, whether the call lead
-                already has a Vantage booking attached, and exactly which
-                fields would update. Sync always runs even when no fields
-                change (idempotent).
-              </p>
+              <h2>Call Leads</h2>
+              <ul class="workspace__intro">
+                <li>
+                  Matches by phone number or job number. Job number is
+                  prioritized.
+                </li>
+                <li>
+                  <em>Booked Jobs</em> and <em>Follow Up Estimates</em> tables
+                  are scanned.
+                </li>
+                <li>
+                  Start by scanning. Sync selected rows or sync all supported.
+                </li>
+                <li>
+                  Auto Sync runs sync-all-supported on your chosen interval.
+                </li>
+              </ul>
             </div>
             <span
               id="call-leads-auto-badge"
@@ -1657,61 +1841,83 @@
 
           <div class="card">
             <h3 class="card__title">Actions</h3>
-            <div class="btn-row">
-              <button id="call-leads-scan" type="button">
-                Scan Call Leads View
-              </button>
-              <button
-                id="call-leads-sync-booked"
-                class="btn-secondary"
-                type="button"
-                disabled
-              >
-                Update Booked Call Leads
-              </button>
-              <button id="call-leads-log" class="btn-secondary" type="button">
-                📋 Log Tables
-              </button>
-            </div>
-            <div class="btn-row">
-              <button id="call-leads-sync-selected" type="button" disabled>
-                Sync Selected
-              </button>
-              <button id="call-leads-sync-all" type="button" disabled>
-                Sync All Supported
-              </button>
-              <button
-                id="call-leads-select-all"
-                class="btn-secondary"
-                type="button"
-                disabled
-              >
-                Select All
-              </button>
-              <button
-                id="call-leads-deselect-all"
-                class="btn-secondary"
-                type="button"
-                disabled
-              >
-                Deselect All
-              </button>
-              <button
-                id="call-leads-expand-all"
-                class="btn-secondary btn-sm"
-                type="button"
-                disabled
-              >
-                ▾ Expand All Rows
-              </button>
-              <button
-                id="call-leads-collapse-all"
-                class="btn-secondary btn-sm"
-                type="button"
-                disabled
-              >
-                ▸ Collapse All Rows
-              </button>
+            <div class="control-panel">
+              <div class="control-panel__group">
+                <p class="control-panel__label">Scan</p>
+                <div class="btn-row">
+                  <button id="call-leads-scan" type="button">
+                    Scan Call Leads View
+                  </button>
+                  <button
+                    id="call-leads-sync-booked"
+                    class="btn-secondary"
+                    type="button"
+                    disabled
+                  >
+                    Update Booked Call Leads
+                  </button>
+                  <button
+                    id="call-leads-log"
+                    class="btn-secondary"
+                    type="button"
+                  >
+                    📋 Log Tables
+                  </button>
+                </div>
+              </div>
+              <div class="control-panel__group">
+                <p class="control-panel__label">Sync</p>
+                <div class="btn-row">
+                  <button id="call-leads-sync-selected" type="button" disabled>
+                    Sync Selected
+                  </button>
+                  <button id="call-leads-sync-all" type="button" disabled>
+                    Sync All Supported
+                  </button>
+                </div>
+              </div>
+              <div class="control-panel__group">
+                <p class="control-panel__label">Selection</p>
+                <div class="btn-row">
+                  <button
+                    id="call-leads-select-all"
+                    class="btn-secondary"
+                    type="button"
+                    disabled
+                  >
+                    Select All
+                  </button>
+                  <button
+                    id="call-leads-deselect-all"
+                    class="btn-secondary"
+                    type="button"
+                    disabled
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+              <div class="control-panel__group">
+                <p class="control-panel__label">Rows</p>
+                <div class="btn-row">
+                  <button
+                    id="call-leads-expand-all"
+                    class="btn-secondary btn-sm"
+                    type="button"
+                    disabled
+                  >
+                    ▾ Expand All Rows
+                  </button>
+                  <button
+                    id="call-leads-collapse-all"
+                    class="btn-secondary btn-sm"
+                    type="button"
+                    disabled
+                  >
+                    ▸ Collapse All Rows
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1761,8 +1967,8 @@
                   <li>
                     <strong>has booking</strong> — The matched call lead
                     already has a Vantage booking attached. Sync is still
-                    allowed and runs idempotently — fields are refreshed but
-                    the booking link is preserved.
+                    allowed when the row is syncable, and the booking link is
+                    preserved.
                   </li>
                   <li>
                     <strong>not found</strong> — Neither phone nor job_no

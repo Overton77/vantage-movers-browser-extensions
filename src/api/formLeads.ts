@@ -37,10 +37,20 @@ export type FormLeadSearchMatch = {
   phone_number?: string;
   ref_no?: string;
   source_company?: string;
+  lead_source_company?: string;
+  source_granularity_key?: string;
+  source_company_label_snapshot?: string;
+  source_granularity_label_snapshot?: string;
+  crm_source_label_snapshot?: string;
   quoted?: boolean;
   cubic_feet?: number;
   duplicate?: boolean;
   booked?: string | null;
+  receiver_agent?: string | null;
+  /** Name snapshot of the agent already linked as `receiver_agent`, if any. */
+  receiver_agent_name_snapshot?: string;
+  receiver_agent_source?: string;
+  receiver_agent_source_value?: string;
   score?: number;
   matched_fields?: string[];
 };

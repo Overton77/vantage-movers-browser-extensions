@@ -17,10 +17,13 @@ import {
   canSyncBookedCallReconciliationRow,
   canSyncCallEnrichmentRow,
 } from "../../../workflows/call-leads/payloads";
-import { isRowSyncable } from "../../../workflows/form-leads/payloads";
+import {
+  filterSelectedSyncableRows,
+} from "../../../workflows/form-leads/payloads";
 import type { SyncCounts } from "../../../workflows/form-leads/types";
 import type { AppContext } from "./context";
 import { formatTime } from "../ui/components";
+import { setBusy } from "./render";
 import {
   scanCallLeadsPreview,
   syncBookedCallRows,
@@ -89,10 +92,13 @@ async function runAutoScanAndSync(
   }
 
   try {
+    setBusy(app, true);
+
     if (workflow === "form-leads") {
       const scanned = await scanFollowUpTable(app, {
         quiet: true,
         awaitPreview: true,
+        manageBusy: false,
       });
       if (!scanned) {
         pushCycle(app, workflow, {
@@ -106,15 +112,17 @@ async function runAutoScanAndSync(
         return;
       }
 
-      const syncableRows = app.state.formLeads.parsedRows.filter((row) =>
-        isRowSyncable(row, app.state.formLeads.previews.get(row.id)),
+      const syncableRows = filterSelectedSyncableRows(
+        app.state.formLeads.parsedRows,
+        app.state.formLeads.selectedRowIds,
+        app.state.formLeads.previews,
       );
       const unsyncableRows = app.state.formLeads.parsedRows.filter(
-        (row) => !isRowSyncable(row, app.state.formLeads.previews.get(row.id)),
+        (row) => !syncableRows.some((syncable) => syncable.id === row.id),
       );
       const results =
         syncableRows.length > 0
-          ? await syncRows(app, syncableRows)
+          ? await syncRows(app, syncableRows, { manageBusy: false })
           : undefined;
 
       const details: CycleDetail[] = [
@@ -224,6 +232,7 @@ async function runAutoScanAndSync(
       finishedAt: formatTime(new Date()),
     });
   } finally {
+    setBusy(app, false);
     renderFormLeads(app);
     renderCallLeads(app);
   }

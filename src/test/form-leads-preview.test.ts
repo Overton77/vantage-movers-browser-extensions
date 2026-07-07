@@ -105,16 +105,45 @@ describe("previewFormLeadRows", () => {
     expect(previews.get("boom")?.message).toContain("network exploded");
   });
 
-  it("skips rows that are not syncable and not fallback-eligible", async () => {
+  it("skips rows that have neither a valid id nor fallback fields", async () => {
     const previews = await previewFormLeadRows(
       [
-        makeRow({ id: "skip", status: "invalid_ref_no" }),
-        makeRow({ id: "skip-2", quoted: undefined }),
+        makeRow({ id: "skip", refNo: "not-an-id", status: "invalid_ref_no" }),
+        makeRow({
+          id: "skip-2",
+          refNo: "not-an-id",
+          status: "missing_prior",
+          quoted: undefined,
+        }),
       ],
       lookupTable({}),
     );
 
     expect(previews.size).toBe(0);
+  });
+
+  it("previews unsupported-priority rows when the ref_no resolves", async () => {
+    const previews = await previewFormLeadRows(
+      [
+        makeRow({
+          id: "unsupported",
+          prior: "2",
+          status: "unsupported_prior",
+          quoted: undefined,
+          salesRepRaw: "MIKEM",
+        }),
+      ],
+      lookupTable({
+        "6a1743a401a95dbdc5bd8797": makeLookup({
+          _id: "6a1743a401a95dbdc5bd8797",
+        }),
+      }),
+    );
+
+    const preview = previews.get("unsupported");
+    expect(preview?.state).toBe("idempotent");
+    expect(preview?.resolvedVantageId).toBe("6a1743a401a95dbdc5bd8797");
+    expect(preview?.message).toContain("receiver_agent");
   });
 
   it("recovers an invalid-ref_no row by phone + email (found_by_fallback)", async () => {
@@ -145,6 +174,55 @@ describe("previewFormLeadRows", () => {
     expect(preview?.state).toBe("found_by_fallback");
     expect(preview?.matchMethod).toBe("phone_and_email");
     expect(preview?.resolvedVantageId).toBe("resolved-id");
+  });
+
+  it("preserves receiver agent snapshots from fallback search results", async () => {
+    const row = makeRow({
+      id: "fallback-with-receiver",
+      refNo: "not provided",
+      status: "invalid_ref_no",
+      quoted: undefined,
+      prior: "5",
+      phone: "+16102131384",
+      email: "sperrot65@yahoo.com",
+      salesRepRaw: "PATRICKO",
+    });
+
+    const previews = await previewFormLeadRows(
+      [row],
+      lookupTable({}, async () => ({
+        status: "found",
+        found: true,
+        message: "found",
+        matches: [
+          {
+            _id: "6a4158eef9791e088864606f",
+            quoted: true,
+            cubic_feet: 300,
+            booked: "booking-1",
+            receiver_agent: "agent-patrick",
+            receiver_agent_name_snapshot: "Patrick",
+            receiver_agent_source: "manual",
+            receiver_agent_source_value: "Patrick",
+          },
+        ],
+        lead: {
+          _id: "6a4158eef9791e088864606f",
+          quoted: true,
+          cubic_feet: 300,
+          booked: "booking-1",
+          receiver_agent: "agent-patrick",
+          receiver_agent_name_snapshot: "Patrick",
+          receiver_agent_source: "manual",
+          receiver_agent_source_value: "Patrick",
+        },
+      })),
+    );
+
+    const preview = previews.get("fallback-with-receiver");
+    expect(preview?.state).toBe("found_by_fallback");
+    expect(preview?.current?.receiver_agent).toBe("agent-patrick");
+    expect(preview?.current?.receiver_agent_name_snapshot).toBe("Patrick");
   });
 
   it("marks more than one fallback match as a conflict", async () => {

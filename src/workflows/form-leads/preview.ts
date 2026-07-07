@@ -20,6 +20,7 @@ import type {
   FormLeadSearchBody,
   FormLeadSearchResult,
 } from "../../utils/api";
+import { MONGO_OBJECT_ID_RE } from "../../parsers/granot/common";
 import { mapWithConcurrency } from "../../utils/concurrency";
 import {
   flattenSearchMatches,
@@ -62,7 +63,7 @@ export async function previewFormLeadRows(
 ): Promise<Map<string, FormLeadRowPreview>> {
   const previews = new Map<string, FormLeadRowPreview>();
   const targets = rows.filter(
-    (row) => isSyncableRow(row) || isFallbackEligible(row),
+    (row) => isDirectLookupEligible(row) || isFallbackEligible(row),
   );
 
   const concurrency = options.concurrency ?? DEFAULT_PREVIEW_CONCURRENCY;
@@ -82,7 +83,7 @@ async function previewRow(
   context: FormLeadPreviewContext,
 ): Promise<FormLeadRowPreview> {
   // Fallback-only rows (invalid Mongo id) skip the direct lookup entirely.
-  if (!isSyncableRow(row)) {
+  if (!isDirectLookupEligible(row)) {
     return runFallbackSearch(row, context);
   }
 
@@ -109,6 +110,10 @@ async function previewRow(
       error: message,
     };
   }
+}
+
+function isDirectLookupEligible(row: FollowUpRow): boolean {
+  return isSyncableRow(row) || MONGO_OBJECT_ID_RE.test(row.refNo);
 }
 
 async function resolveDuplicateQuarantineRow(
@@ -210,6 +215,22 @@ function flattenResolvedLead(
     cubic_feet: lead.cubic_feet,
     booked: lead.booked,
     duplicate: lead.duplicate,
+    receiver_agent:
+      lead.receiver_agent === null || typeof lead.receiver_agent === "string"
+        ? lead.receiver_agent
+        : undefined,
+    receiver_agent_name_snapshot:
+      typeof lead.receiver_agent_name_snapshot === "string"
+        ? lead.receiver_agent_name_snapshot
+        : undefined,
+    receiver_agent_source:
+      typeof lead.receiver_agent_source === "string"
+        ? lead.receiver_agent_source
+        : undefined,
+    receiver_agent_source_value:
+      typeof lead.receiver_agent_source_value === "string"
+        ? lead.receiver_agent_source_value
+        : undefined,
   };
 }
 

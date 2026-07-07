@@ -1,21 +1,38 @@
 // Resolves ambiguous phone/email fallback matches to a single Vantage form lead
 // when tie-break criteria are met. The popup still surfaces a conflict message
 // so the owner can review before syncing.
-import type { FormLeadSearchMatch } from "../../utils/api";
+import type { FormLeadLookup, FormLeadSearchMatch } from "../../utils/api";
 import { deriveQuotedFromPrior } from "./payloads";
 import type { FollowUpRow } from "./types";
 
 /** Granot CRM source labels mapped to Vantage `source_company` slugs. */
-const GRANOT_SOURCE_TO_COMPANY: Record<string, string> = {
-  "TBM Forms": "tbm_leads",
-  "TBM Prime Forms": "tbm_prime_leads",
-  "TBM Forms Prime": "tbm_prime_leads",
-  "Top10 Forms": "top10_leads",
-  "Top10 Inbounds": "top10_leads",
-  "10 Best Inbounds": "tbm_leads",
-  "10Best Inbounds": "tbm_leads",
-  "10best Inbounds": "tbm_leads",
-};
+const GRANOT_SOURCE_TO_COMPANY = Object.fromEntries(
+  [
+    ["Main Site Forms", "main_site"],
+    ["Main Site Inbounds", "main_site"],
+    ["GetMovers Forms", "get_movers_leads"],
+    ["Get Movers Forms", "get_movers_leads"],
+    ["GetMovers Inbounds", "get_movers_leads"],
+    ["Get Movers Inbounds", "get_movers_leads"],
+    ["Best Relocation Forms", "best_relocation_leads"],
+    ["BestRelocation Forms", "best_relocation_leads"],
+    ["Best Relocation Inbounds", "best_relocation_leads"],
+    ["BestRelocation Inbounds", "best_relocation_leads"],
+    ["TBM Forms", "tbm_leads"],
+    ["TBM Inbounds", "tbm_leads"],
+    ["TBM Prime Forms", "tbm_prime_leads"],
+    ["TBM Forms Prime", "tbm_prime_leads"],
+    ["TBM Prime Inbounds", "tbm_prime_leads"],
+    ["Top10 Forms", "top10_leads"],
+    ["Top10 Inbounds", "top10_leads"],
+    ["10 Best Forms", "tbm_leads"],
+    ["10Best Forms", "tbm_leads"],
+    ["10best Forms", "tbm_leads"],
+    ["10 Best Inbounds", "tbm_leads"],
+    ["10Best Inbounds", "tbm_leads"],
+    ["10best Inbounds", "tbm_leads"],
+  ].map(([label, company]) => [normalizeSourceLabel(label), company]),
+);
 
 export type FallbackMatchResolution =
   | {
@@ -56,8 +73,42 @@ function flattenSearchMatch(raw: RawSearchMatch): FormLeadSearchMatch {
         lead.booked === null || typeof lead.booked === "string"
           ? lead.booked
           : undefined,
+      receiver_agent:
+        lead.receiver_agent === null || typeof lead.receiver_agent === "string"
+          ? lead.receiver_agent
+          : undefined,
+      receiver_agent_name_snapshot:
+        typeof lead.receiver_agent_name_snapshot === "string"
+          ? lead.receiver_agent_name_snapshot
+          : undefined,
+      receiver_agent_source:
+        typeof lead.receiver_agent_source === "string"
+          ? lead.receiver_agent_source
+          : undefined,
+      receiver_agent_source_value:
+        typeof lead.receiver_agent_source_value === "string"
+          ? lead.receiver_agent_source_value
+          : undefined,
       source_company:
         typeof lead.source_company === "string" ? lead.source_company : undefined,
+      lead_source_company:
+        typeof lead.lead_source_company === "string" ? lead.lead_source_company : undefined,
+      source_granularity_key:
+        typeof lead.source_granularity_key === "string"
+          ? lead.source_granularity_key
+          : undefined,
+      source_company_label_snapshot:
+        typeof lead.source_company_label_snapshot === "string"
+          ? lead.source_company_label_snapshot
+          : undefined,
+      source_granularity_label_snapshot:
+        typeof lead.source_granularity_label_snapshot === "string"
+          ? lead.source_granularity_label_snapshot
+          : undefined,
+      crm_source_label_snapshot:
+        typeof lead.crm_source_label_snapshot === "string"
+          ? lead.crm_source_label_snapshot
+          : undefined,
       score: raw.score,
       matched_fields: raw.matched_fields,
     };
@@ -72,14 +123,7 @@ function flattenSearchMatch(raw: RawSearchMatch): FormLeadSearchMatch {
 
 export function searchMatchToLookup(
   match: FormLeadSearchMatch,
-): {
-  _id: string;
-  ref_no?: string;
-  quoted?: boolean;
-  cubic_feet?: number;
-  booked?: string | null;
-  duplicate?: boolean;
-} {
+): FormLeadLookup {
   return {
     _id: match._id,
     ref_no: match.ref_no,
@@ -87,6 +131,10 @@ export function searchMatchToLookup(
     cubic_feet: match.cubic_feet,
     booked: match.booked,
     duplicate: match.duplicate,
+    receiver_agent: match.receiver_agent,
+    receiver_agent_name_snapshot: match.receiver_agent_name_snapshot,
+    receiver_agent_source: match.receiver_agent_source,
+    receiver_agent_source_value: match.receiver_agent_source_value,
   };
 }
 
@@ -152,9 +200,13 @@ function pickSingle(
 }
 
 function resolveSourceCompany(source?: string): string | undefined {
-  const label = source?.trim();
+  const label = normalizeSourceLabel(source);
   if (!label) {
     return undefined;
   }
   return GRANOT_SOURCE_TO_COMPANY[label];
+}
+
+function normalizeSourceLabel(source?: string): string {
+  return source?.trim().toLowerCase().replace(/[^a-z0-9]+/g, "") ?? "";
 }

@@ -24,6 +24,11 @@ export type LeadCancellationSummary = {
 export type FormLeadCard = {
   _id: string;
   source_company?: string;
+  lead_source_company?: string;
+  source_granularity_key?: string;
+  source_company_label_snapshot?: string;
+  source_granularity_label_snapshot?: string;
+  crm_source_label_snapshot?: string;
   name?: string;
   email?: string;
   phone_number?: string;
@@ -40,6 +45,11 @@ export type FormLeadCard = {
 export type CallLeadCard = {
   _id: string;
   source_company?: string;
+  lead_source_company?: string;
+  source_granularity_key?: string;
+  source_company_label_snapshot?: string;
+  source_granularity_label_snapshot?: string;
+  crm_source_label_snapshot?: string;
   name?: string;
   email?: string;
   phone_number?: string;
@@ -56,6 +66,8 @@ export type CallLeadCard = {
 export type LeadBrowseQuery = {
   q?: string;
   source_company?: string;
+  lead_source_company?: string;
+  source_granularity_key?: string;
   name?: string;
   email?: string;
   phone_number?: string;

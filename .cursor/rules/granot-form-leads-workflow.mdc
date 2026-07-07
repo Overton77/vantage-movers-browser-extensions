@@ -1,18 +1,20 @@
 ---
 description: Granot Form Leads scan, preview, fallback, and sync workflow
-globs: src/workflows/form-leads/**/*.ts,src/parsers/granot/form-leads.ts,src/parsers/granot/form-edit-lead.ts,src/test/form-leads-*.test.ts,src/test/parsers.test.ts
+globs: src/workflows/form-leads/**/*.ts,src/workflows/agents/**/*.ts,src/parsers/granot/form-leads.ts,src/parsers/granot/form-edit-lead.ts,src/entrypoints/popup/ui/salesRep.ts,src/test/form-leads-*.test.ts,src/test/agents-match.test.ts,src/test/parsers.test.ts
 alwaysApply: false
 ---
 
 # Granot Form Leads Workflow
 
-- `src/parsers/granot/form-leads.ts` parses the Booked Jobs / Follow Up Estimates tables and returns `FollowUpRow` items with `syncable`, `invalid_ref_no`, `unsupported_prior`, or `missing_prior` status. Only `prior` values `1` and `5` are treated as syncable; `0` stays parsed but is not pushed to Vantage.
+- `src/parsers/granot/form-leads.ts` parses the Booked Jobs / Follow Up Estimates tables and returns `FollowUpRow` items with `syncable`, `invalid_ref_no`, `unsupported_prior`, or `missing_prior` status. Only `prior` values `1` and `5` are treated as syncable; `0` stays parsed but is not pushed to Vantage. Each row also captures `salesRepRaw` from Granot's `user` column, falling back to `rep` when `user` is blank.
 - `src/parsers/granot/form-edit-lead.ts` parses the current edit page (`ORDREF` + priority level) and also exposes `applyBindingEstimateFeeFromInitialPrice()`, which writes `Binding Estimate Fee` at 85% of the initial price into the first extra-fee fields.
 - `scan.ts` sends `PARSE_FOLLOW_UP_ROWS` and returns the parsed response plus the row ids selected by default.
 - `preview.ts` resolves each row against Vantage with bounded concurrency. It prefers `GET /api/v1/form-leads/:id`, falls back to `POST /api/v1/form-leads/search` for invalid or missing ids with phone/email, and records `not_found`, `preview_error`, `found_by_fallback`, or `conflict` outcomes without stopping the batch.
 - `fallback-resolve.ts` keeps fallback matching deterministic: it flattens server search matches and can auto-resolve a single candidate by matching `ref_no`, Granot source label, or `quoted` alignment with `prior`.
 - `payloads.ts` owns the sync predicates and payload shaping. Direct sync only uses rows that are parser-syncable and have `prior` `1` or `5`; fallback sync uses the resolved Vantage `_id`, never the Granot `ref_no`. Duplicate-quarantined form leads are skipped by id.
-- `sync.ts` compares the candidate against the current Vantage lead, PATCHes only changed fields, and still sends an idempotent payload when nothing changed so the server can perform its own sync path.
+- `sync.ts` compares the candidate against the current Vantage lead, PATCHes only changed fields, and still sends an idempotent payload when nothing changed so the server can perform its own sync path. During sync it also attempts **receiver-agent attribution** from `salesRepRaw`: `buildReceiverAgentUpdate()` normalizes the value and calls `matchAgentByCrmUsername()` in `src/workflows/agents/match.ts` against the loaded Agent catalog's `granot_crm_username`. When exactly one Agent matches and the Form Lead has no `receiver_agent` yet, the PATCH adds `receiver_agent`, `receiver_agent_source: "extension_crm_username_match"`, and `receiver_agent_source_value`. Existing `receiver_agent` values are never overwritten; unmatched or already-linked cases only append informational text to the row result message.
+- `src/workflows/agents/loadForReceiverMatching.ts` loads the Agent catalog (`includeInactive: true`) for sync and background auto-sync. Popup sync uses `resolveAgentsForReceiverMatching()` with the ephemeral `app.state.agents` cache; the background runner calls `loadAgentsForReceiverMatching()` directly.
+- `src/entrypoints/popup/ui/salesRep.ts` renders the owner-only **Sales Rep** control on each form-leads row after preview resolves a Vantage `_id`. CRM-username match (`extension_crm_username_match`) is preferred over first-name match (`extension_match`); zero matches open a create-or-pick dialog. Manual links use the same `receiver_agent` provenance fields as auto-sync and are the only path that can overwrite an existing link (via explicit owner action).
 - `cycles.ts` turns parsed rows and row results into the UI-free `CycleDetail` format shared with auto-sync history.
 - The tests in `src/test/form-leads-payloads.test.ts`, `src/test/form-leads-preview-model.test.ts`, `src/test/form-leads-preview.test.ts`, `src/test/form-leads-sync.test.ts`, `src/test/form-leads-fallback-resolve.test.ts`, and `src/test/parsers.test.ts` document the intended fallback, duplicate, and sync behavior.
 

@@ -64,6 +64,11 @@ export type CallLeadEnrichmentResult = {
   /** Name snapshot of the agent already linked as `receiver_agent`, if any. */
   receiver_agent_name_snapshot?: string;
   receiver_agent_granot_crm_username?: string;
+  lead_source_company?: string;
+  source_granularity_key?: string;
+  source_company_label_snapshot?: string;
+  source_granularity_label_snapshot?: string;
+  crm_source_label_snapshot?: string;
   changes: string[];
   warnings: string[];
   parsed?: Record<string, unknown>;
@@ -97,6 +102,11 @@ export type BookedCallLeadReconciliationResult = {
   /** Name snapshot of the agent already linked as `receiver_agent`, if any. */
   receiver_agent_name_snapshot?: string;
   receiver_agent_granot_crm_username?: string;
+  lead_source_company?: string;
+  source_granularity_key?: string;
+  source_company_label_snapshot?: string;
+  source_granularity_label_snapshot?: string;
+  crm_source_label_snapshot?: string;
   changes: string[];
   warnings: string[];
   parsed?: Record<string, unknown>;

@@ -5,6 +5,7 @@
 import type { CycleDetail, CycleEntry } from "../../../auto-sync/cycles";
 import type { ProgressFilter } from "../../../app/state";
 import type { LeadStatus, RowSyncResult } from "../../../workflows/form-leads/types";
+import type { RowStatusCard, SummaryMetric } from "./leadMessaging";
 
 export function compactChip(label: string, value: string): HTMLSpanElement {
   const chip = document.createElement("span");
@@ -32,6 +33,76 @@ export function fieldBlock(label: string, value: string): HTMLDivElement {
   valueEl.textContent = value;
 
   wrapper.append(labelEl, valueEl);
+  return wrapper;
+}
+
+export function stateChip(
+  label: string,
+  value: string | number,
+  tone: SummaryMetric["tone"] = "neutral",
+): HTMLSpanElement {
+  const chip = document.createElement("span");
+  chip.className = `state-chip is-${tone}`;
+  const labelEl = document.createElement("span");
+  labelEl.className = "state-chip__label";
+  labelEl.textContent = label;
+  const valueEl = document.createElement("span");
+  valueEl.className = "state-chip__value";
+  valueEl.textContent = String(value);
+  chip.append(labelEl, valueEl);
+  return chip;
+}
+
+export function summaryMetrics(metrics: SummaryMetric[]): HTMLDivElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "summary-metrics";
+  for (const metric of metrics) {
+    const metricEl = document.createElement("div");
+    metricEl.className = `summary-metric is-${metric.tone ?? "neutral"}`;
+    const labelEl = document.createElement("span");
+    labelEl.className = "summary-metric__label";
+    labelEl.textContent = metric.label;
+    const valueEl = document.createElement("span");
+    valueEl.className = "summary-metric__value";
+    valueEl.textContent = String(metric.value);
+    metricEl.append(labelEl, valueEl);
+    if (metric.help) {
+      const helpEl = document.createElement("span");
+      helpEl.className = "summary-metric__help";
+      helpEl.textContent = metric.help;
+      metricEl.append(helpEl);
+    }
+    wrapper.append(metricEl);
+  }
+  return wrapper;
+}
+
+export function rowStateCard(card: RowStatusCard): HTMLDivElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = `row-state-card is-${card.tone}`;
+
+  const title = document.createElement("div");
+  title.className = "row-state-card__title";
+  title.textContent = card.title;
+  wrapper.append(title);
+
+  for (const line of card.lines) {
+    if (!line) continue;
+    const lineEl = document.createElement("div");
+    lineEl.className = "row-state-card__line";
+    lineEl.textContent = line;
+    wrapper.append(lineEl);
+  }
+
+  if (card.chips.length > 0) {
+    const chips = document.createElement("div");
+    chips.className = "row-state-card__chips";
+    for (const chip of card.chips) {
+      chips.append(stateChip(chip.label, chip.value, chip.tone));
+    }
+    wrapper.append(chips);
+  }
+
   return wrapper;
 }
 

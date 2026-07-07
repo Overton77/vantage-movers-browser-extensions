@@ -1,16 +1,19 @@
 ---
 description: Granot Call Leads preview, enrichment, and booked reconciliation workflow
-globs: src/workflows/call-leads/**/*.ts,src/parsers/granot/call-leads.ts,src/test/parsers.test.ts
+globs: src/workflows/call-leads/**/*.ts,src/parsers/granot/call-leads.ts,src/entrypoints/popup/ui/salesRep.ts,src/test/parsers.test.ts,src/test/call-leads-payloads.test.ts
 alwaysApply: false
 ---
 
 # Granot Call Leads Workflow
 
-- `src/parsers/granot/call-leads.ts` parses the Booked Jobs and Follow Up Estimates tables into sectioned preview rows keyed by table header text. The parser is read-only and only reports what is visible in the current Granot page or accessible frames.
-- `payloads.ts` maps preview rows into the server payloads used for enrichment and booked reconciliation. The `phone` field is included for matching only and must not be treated as a value to write back into `CallLead.phone_number`.
+- `src/parsers/granot/call-leads.ts` parses the Booked Jobs and Follow Up Estimates tables into sectioned preview rows keyed by table header text. The parser is read-only and only reports what is visible in the current Granot page or accessible frames. Each row exposes the Granot `user`/`rep` column as `values.user` / `values.rep` (see `getSalesRepValue()` in `call-leads.ts` and `payloads.ts`).
+- `payloads.ts` maps preview rows into the server payloads used for enrichment and booked reconciliation. The `phone` field is included for matching only and must not be treated as a value to write back into `CallLead.phone_number`. The Granot sales-rep column is sent as `granot_crm_username` on both enrichment and booked-reconciliation row payloads.
 - `payloads.ts` also defines the sync gates: enrichment rows and booked reconciliation rows are only syncable when the server preview result is `updateable`, `unchanged`, or `updated`.
 - `preview.ts` converts a parsed preview response into enrichment and booked-reconciliation payloads, calls the server preview endpoints, and merges results back by `row_id`. If preview fails for one side, the other side can still render.
 - `sync.ts` merges returned results back into the preview rows and tallies `updated`, `unchanged`, and `failed` counts. Booked reconciliation treats `conflict`, `booking_missing`, `no_match`, `invalid`, and `failed` as failures.
+- **Receiver-agent attribution** runs on the server during enrichment and booked-reconciliation sync (`vantage-main-server/api/services/agents/receiverAgentCrmUsername.ts`). For each syncable row the server normalizes `granot_crm_username`, looks up an Agent by `granot_crm_username`, and sets `receiver_agent` plus provenance (`receiver_agent_source: "extension_crm_username_match"`, `receiver_agent_source_value`, `receiver_agent_name_snapshot`, `receiver_agent_set_at`) only when the Call Lead has no existing `receiver_agent`. Already-linked leads are left unchanged; unmatched usernames surface as warnings on the sync result. A receiver-only match can trigger a write even when no enrichment/reconciliation fields changed.
+- `src/entrypoints/popup/ui/salesRep.ts` renders the owner-only **Sales Rep** control on Follow Up Estimates and Booked Jobs call-lead rows once preview resolves a `call_lead_id`. CRM-username match is preferred over first-name match; manual owner links are the only path that can replace an existing `receiver_agent`.
+- Preview/sync results may include `receiver_agent_name_snapshot` and `receiver_agent_granot_crm_username` so the popup and auto-sync cycle history reflect linked agents without an extra fetch.
 - `cycles.ts` turns enrichment previews into `CycleDetail` entries for auto-sync history, with `updated -> ok`, `unchanged -> unchanged`, `failed/conflict -> failed`, and missing results -> `skipped`.
 - The workflow tests live primarily in `src/test/parsers.test.ts`; they confirm the parser shape and the section visibility contract used by the popup and background runner.
 
