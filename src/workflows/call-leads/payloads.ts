@@ -51,7 +51,9 @@ export function callLeadRowsToEnrichmentPayloads(
     phone: getPreviewValue(row, "phone"),
     granot_crm_username: getSalesRepValue(row),
     email: getPreviewValue(row, "email"),
+    from: getPreviewValue(row, "from"),
     from_zip: getPreviewValue(row, "from_zip"),
+    to: getPreviewValue(row, "to"),
     to_zip: getPreviewValue(row, "to_zip"),
     est_cf: getPreviewValue(row, "est_cf"),
   }));
@@ -78,7 +80,9 @@ export function callLeadRowsToBookedReconciliationPayloads(
     phone: getPreviewValue(row, "phone"),
     granot_crm_username: getSalesRepValue(row),
     email: getPreviewValue(row, "email"),
+    from: getPreviewValue(row, "from"),
     from_zip: getPreviewValue(row, "from_zip"),
+    to: getPreviewValue(row, "to"),
     to_zip: getPreviewValue(row, "to_zip"),
     est_cf: getPreviewValue(row, "est_cf"),
   }));

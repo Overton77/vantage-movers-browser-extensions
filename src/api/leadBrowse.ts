@@ -33,6 +33,12 @@ export type FormLeadCard = {
   email?: string;
   phone_number?: string;
   ref_no?: string;
+  pickup_city?: string;
+  pickup_zip?: string;
+  pickup_state?: string;
+  delivery_city?: string;
+  destination_zip?: string;
+  delivery_state?: string;
   quoted?: boolean;
   cubic_feet?: number;
   createdAt?: string;
@@ -54,6 +60,12 @@ export type CallLeadCard = {
   email?: string;
   phone_number?: string;
   job_no?: string;
+  pickup_city?: string;
+  pickup_zip?: string;
+  pickup_state?: string;
+  delivery_city?: string;
+  delivery_zip?: string;
+  delivery_state?: string;
   cubic_feet?: number;
   createdAt?: string;
   receiver_agent_name_snapshot?: string;

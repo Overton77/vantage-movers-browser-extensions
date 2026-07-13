@@ -213,6 +213,12 @@ function flattenResolvedLead(
     ref_no: lead.ref_no,
     quoted: lead.quoted,
     cubic_feet: lead.cubic_feet,
+    pickup_city: lead.pickup_city,
+    pickup_zip: lead.pickup_zip,
+    pickup_state: lead.pickup_state,
+    delivery_city: lead.delivery_city,
+    destination_zip: lead.destination_zip,
+    delivery_state: lead.delivery_state,
     booked: lead.booked,
     duplicate: lead.duplicate,
     receiver_agent:

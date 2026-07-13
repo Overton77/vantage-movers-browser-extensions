@@ -28,7 +28,17 @@ function makePreview(): CallLeadPreviewResponse {
         tableFound: true,
         headers: ["job_no"],
         rows: [
-          { id: "follow-1", rowIndex: 1, values: { job_no: "P3" } },
+          {
+            id: "follow-1",
+            rowIndex: 1,
+            values: {
+              job_no: "P3",
+              from: "Barnesville,GA",
+              from_zip: "30201",
+              to: ",",
+              to_zip: "0",
+            },
+          },
           { id: "follow-2", rowIndex: 2, values: { job_no: "P4" } },
         ],
       },
@@ -97,6 +107,16 @@ describe("previewCallLeads", () => {
     ]);
     // only the updateable follow-up row is selected by default
     expect(outcome.selectedRowIds).toEqual(["follow-1"]);
+    expect(previewEnrichment).toHaveBeenCalledWith([
+      expect.objectContaining({
+        row_id: "follow-1",
+        from: "Barnesville,GA",
+        from_zip: "30201",
+        to: ",",
+        to_zip: "0",
+      }),
+      expect.objectContaining({ row_id: "follow-2" }),
+    ]);
   });
 
   it("captures an enrichment preview error and leaves rows payload-only", async () => {

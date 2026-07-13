@@ -66,6 +66,10 @@ describe("parseFormLeadRows (Booked Jobs / Follow Up Estimates)", () => {
     expect(syncableRow.quoted).toBe(true);
     expect(syncableRow.cubicFeet).toBe(491);
     expect(syncableRow.jobNo).toBe("P5556767");
+    expect(syncableRow.from).toBe("Chicago,IL");
+    expect(syncableRow.fromZip).toBe("60647");
+    expect(syncableRow.to).toBe("Cincinnati,OH");
+    expect(syncableRow.toZip).toBe("45227");
     expect(invalidRow.salesRepRaw).toBe("JACOB");
     expect(syncableRow.salesRepRaw).toBe("MIKEM");
   });

@@ -8,7 +8,13 @@
 //     lookup failed. These are surfaced as `found_by_fallback` so the UI can
 //     clearly distinguish them and the resolved Vantage `_id` is preserved.
 import type { FormLeadLookup } from "../../utils/api";
-import { deriveQuotedFromPrior, isCubicFeetSyncable, isFormLeadPriorSyncable } from "./payloads";
+import {
+  buildFormLeadUpdatePayload,
+  deriveQuotedFromPrior,
+  isCubicFeetSyncable,
+  isFormLeadPriorSyncable,
+  rowToSyncCandidate,
+} from "./payloads";
 import type {
   FollowUpRow,
   FormLeadMatchMethod,
@@ -47,6 +53,16 @@ export function buildFormLeadRowPreview(
     changes.push(
       `cubic_feet ${formatValue(current.cubic_feet)} → ${row.cubicFeet}`,
     );
+  }
+  const locationPayload = buildFormLeadUpdatePayload(
+    rowToSyncCandidate(row),
+    current,
+  );
+  for (const field of LOCATION_FIELDS) {
+    const nextValue = locationPayload[field];
+    if (nextValue !== undefined) {
+      changes.push(`${field} ${formatValue(current[field])} → ${nextValue}`);
+    }
   }
 
   const resolvedVantageId = current._id;
@@ -139,3 +155,12 @@ function formatValue(value: unknown): string {
   if (value === undefined || value === null) return "missing";
   return String(value);
 }
+
+const LOCATION_FIELDS = [
+  "pickup_city",
+  "pickup_zip",
+  "pickup_state",
+  "delivery_city",
+  "destination_zip",
+  "delivery_state",
+] as const;

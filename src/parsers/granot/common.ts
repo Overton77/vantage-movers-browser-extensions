@@ -16,6 +16,10 @@ export const FIELD_ALIASES = {
   customer: ["customer"],
   phone: ["phone"],
   email: ["email"],
+  from: ["from"],
+  fromZip: ["from_zip"],
+  to: ["to"],
+  toZip: ["to_zip"],
   user: ["user"],
   rep: ["rep"],
 } as const;
@@ -73,6 +77,25 @@ export function parseCubicFeet(value: string): number | undefined {
 
   const cubicFeet = Number(normalized);
   return Number.isFinite(cubicFeet) ? cubicFeet : undefined;
+}
+
+export function parseGranotCityState(
+  value?: string | null,
+): { city: string; state: string } | undefined {
+  const normalized = normalizeCellText(value ?? "");
+  const separatorIndex = normalized.lastIndexOf(",");
+  if (separatorIndex < 1) return undefined;
+
+  const city = normalized.slice(0, separatorIndex).trim();
+  const state = normalized.slice(separatorIndex + 1).trim().toUpperCase();
+  return city && /^[A-Z]{2}$/.test(state) ? { city, state } : undefined;
+}
+
+export function parseGranotZip(value?: string | null): string | undefined {
+  const normalized = normalizeCellText(value ?? "");
+  return /^\d{5}$/.test(normalized) && !/^0+$/.test(normalized)
+    ? normalized
+    : undefined;
 }
 
 export function isLeadLikeRow(

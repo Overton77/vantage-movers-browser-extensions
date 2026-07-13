@@ -1,6 +1,10 @@
 // Pure helpers that turn parsed Form Lead rows into Vantage API payloads and
 // human-readable result messages. No DOM, tabs, or messaging dependencies.
 import type { FormLeadLookup, FormLeadUpdatePayload } from "../../utils/api";
+import {
+  parseGranotCityState,
+  parseGranotZip,
+} from "../../parsers/granot/common";
 import type {
   FollowUpRow,
   FormLeadRowPreview,
@@ -138,6 +142,10 @@ export function rowToSyncCandidate(
 ): LeadSyncCandidate {
   const isFallback = preview?.matchMethod === "phone_and_email";
   const canSyncLeadFields = isFormLeadPriorSyncable(row.prior);
+  const pickupLocation = parseGranotCityState(row.from);
+  const deliveryLocation = parseGranotCityState(row.to);
+  const pickupZip = parseGranotZip(row.fromZip);
+  const deliveryZip = parseGranotZip(row.toZip);
   const quoted = canSyncLeadFields
     ? isFallback
       ? row.quoted ?? deriveQuotedFromPrior(row.prior)
@@ -149,6 +157,22 @@ export function rowToSyncCandidate(
     prior: row.prior,
     quoted,
     cubicFeet: canSyncLeadFields && isCubicFeetSyncable(row.prior) ? row.cubicFeet : undefined,
+    pickupCity: canSyncLeadFields ? pickupLocation?.city : undefined,
+    pickupState:
+      canSyncLeadFields && pickupLocation && pickupZip
+        ? pickupLocation.state
+        : undefined,
+    pickupZip:
+      canSyncLeadFields && pickupLocation && pickupZip ? pickupZip : undefined,
+    deliveryCity: canSyncLeadFields ? deliveryLocation?.city : undefined,
+    deliveryState:
+      canSyncLeadFields && deliveryLocation && deliveryZip
+        ? deliveryLocation.state
+        : undefined,
+    deliveryZip:
+      canSyncLeadFields && deliveryLocation && deliveryZip
+        ? deliveryZip
+        : undefined,
     salesRepRaw: row.salesRepRaw,
     status: row.status,
     vantageId: preview?.resolvedVantageId ?? row.refNo,
@@ -157,7 +181,7 @@ export function rowToSyncCandidate(
 
 export function buildFormLeadUpdatePayload(
   candidate: LeadSyncCandidate,
-  current: { quoted?: boolean; cubic_feet?: number },
+  current: Partial<FormLeadLookup>,
 ): FormLeadUpdatePayload {
   const payload: FormLeadUpdatePayload = {};
   if (typeof candidate.quoted === "boolean" && current.quoted !== candidate.quoted) {
@@ -167,7 +191,65 @@ export function buildFormLeadUpdatePayload(
   if (cubicFeet !== undefined && current.cubic_feet !== cubicFeet) {
     payload.cubic_feet = cubicFeet;
   }
+  if (candidate.pickupCity && isMissingCity(current.pickup_city)) {
+    payload.pickup_city = candidate.pickupCity;
+  }
+  if (
+    candidate.pickupZip &&
+    isMissingZip(current.pickup_zip) &&
+    (isMissingState(current.pickup_state) ||
+      statesMatch(current.pickup_state, candidate.pickupState))
+  ) {
+    payload.pickup_zip = candidate.pickupZip;
+  }
+  if (
+    candidate.pickupState &&
+    isMissingState(current.pickup_state) &&
+    (isMissingZip(current.pickup_zip) ||
+      current.pickup_zip?.trim() === candidate.pickupZip)
+  ) {
+    payload.pickup_state = candidate.pickupState;
+  }
+  if (candidate.deliveryCity && isMissingCity(current.delivery_city)) {
+    payload.delivery_city = candidate.deliveryCity;
+  }
+  if (
+    candidate.deliveryZip &&
+    isMissingZip(current.destination_zip) &&
+    (isMissingState(current.delivery_state) ||
+      statesMatch(current.delivery_state, candidate.deliveryState))
+  ) {
+    payload.destination_zip = candidate.deliveryZip;
+  }
+  if (
+    candidate.deliveryState &&
+    isMissingState(current.delivery_state) &&
+    (isMissingZip(current.destination_zip) ||
+      current.destination_zip?.trim() === candidate.deliveryZip)
+  ) {
+    payload.delivery_state = candidate.deliveryState;
+  }
   return payload;
+}
+
+function isMissingCity(value?: string | null): boolean {
+  return !value?.trim();
+}
+
+function isMissingZip(value?: string | null): boolean {
+  const normalized = value?.trim();
+  return !normalized || /^0+$/.test(normalized);
+}
+
+function isMissingState(value?: string | null): boolean {
+  const normalized = value?.trim().toLowerCase();
+  return !normalized || normalized === "," || normalized === "not_found";
+}
+
+function statesMatch(current?: string | null, candidate?: string): boolean {
+  return Boolean(
+    candidate && current?.trim().toUpperCase() === candidate.toUpperCase(),
+  );
 }
 
 export function buildFormLeadSyncPayload(

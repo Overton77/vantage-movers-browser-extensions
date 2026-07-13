@@ -26,6 +26,10 @@ export type FollowUpRow = {
   customer?: string;
   phone?: string;
   email?: string;
+  from?: string;
+  fromZip?: string;
+  to?: string;
+  toZip?: string;
   /** Raw Granot `user` column value, falling back to `rep` when `user` is blank. */
   salesRepRaw?: string;
   status: LeadStatus;
@@ -72,6 +76,12 @@ export type LeadSyncCandidate = {
   prior?: string;
   quoted?: boolean;
   cubicFeet?: number;
+  pickupCity?: string;
+  pickupZip?: string;
+  pickupState?: string;
+  deliveryCity?: string;
+  deliveryZip?: string;
+  deliveryState?: string;
   /** Raw Granot `user`/`rep` value used for CRM username receiver matching. */
   salesRepRaw?: string;
   status: LeadStatus;

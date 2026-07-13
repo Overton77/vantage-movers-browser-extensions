@@ -13,7 +13,9 @@ export type CallLeadEnrichmentRowPayload = {
   /** Raw Granot `user`/`rep` value for receiver Agent CRM username matching. */
   granot_crm_username?: string;
   email?: string;
+  from?: string;
   from_zip?: string;
+  to?: string;
   to_zip?: string;
   est_cf?: string;
 };
@@ -32,7 +34,9 @@ export type BookedCallLeadReconciliationRowPayload = {
   /** Raw Granot `user`/`rep` value for receiver Agent CRM username matching. */
   granot_crm_username?: string;
   email?: string;
+  from?: string;
   from_zip?: string;
+  to?: string;
   to_zip?: string;
   est_cf?: string;
 };

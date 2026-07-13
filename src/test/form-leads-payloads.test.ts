@@ -87,6 +87,25 @@ describe("rowToSyncCandidate", () => {
     ).toBe(500);
   });
 
+  it("drops location enrichment when prior is not field-syncable", () => {
+    const candidate = rowToSyncCandidate(
+      makeRow({
+        prior: "0",
+        from: "Barnesville,GA",
+        fromZip: "30201",
+        to: "Atlanta,GA",
+        toZip: "30301",
+      }),
+    );
+
+    expect(candidate.pickupCity).toBeUndefined();
+    expect(candidate.pickupZip).toBeUndefined();
+    expect(candidate.pickupState).toBeUndefined();
+    expect(candidate.deliveryCity).toBeUndefined();
+    expect(candidate.deliveryZip).toBeUndefined();
+    expect(candidate.deliveryState).toBeUndefined();
+  });
+
   it("uses the resolved Vantage id and derived quoted for a fallback match", () => {
     const row = makeRow({
       id: "fb",
@@ -105,6 +124,26 @@ describe("rowToSyncCandidate", () => {
     });
     expect(candidate.vantageId).toBe("resolved-id");
     expect(candidate.quoted).toBe(true);
+  });
+
+  it("parses valid Granot locations and ignores comma and zero placeholders", () => {
+    const candidate = rowToSyncCandidate(
+      makeRow({
+        from: "Barnesville,GA",
+        fromZip: "30201",
+        to: ",",
+        toZip: "0",
+      }),
+    );
+
+    expect(candidate).toMatchObject({
+      pickupCity: "Barnesville",
+      pickupState: "GA",
+      pickupZip: "30201",
+    });
+    expect(candidate.deliveryCity).toBeUndefined();
+    expect(candidate.deliveryState).toBeUndefined();
+    expect(candidate.deliveryZip).toBeUndefined();
   });
 });
 
@@ -267,6 +306,50 @@ describe("buildFormLeadUpdatePayload", () => {
       cubic_feet: 300,
     });
     expect(payload).toEqual({});
+  });
+
+  it("fills only missing location fields and never overwrites valid values", () => {
+    const candidate = makeCandidate({
+      pickupCity: "Barnesville",
+      pickupState: "GA",
+      pickupZip: "30201",
+      deliveryCity: "Atlanta",
+      deliveryState: "GA",
+      deliveryZip: "30301",
+    });
+    const payload = buildFormLeadUpdatePayload(candidate, {
+      quoted: true,
+      cubic_feet: 300,
+      pickup_city: undefined,
+      pickup_state: "not_found",
+      pickup_zip: "30201",
+      delivery_city: "Existing City",
+      delivery_state: "GA",
+      destination_zip: "0",
+    });
+
+    expect(payload).toEqual({
+      pickup_city: "Barnesville",
+      pickup_state: "GA",
+      destination_zip: "30301",
+    });
+  });
+
+  it("does not combine a Granot state with a conflicting existing ZIP", () => {
+    const candidate = makeCandidate({
+      pickupCity: "Barnesville",
+      pickupState: "GA",
+      pickupZip: "30201",
+    });
+
+    expect(
+      buildFormLeadUpdatePayload(candidate, {
+        quoted: true,
+        cubic_feet: 300,
+        pickup_zip: "10001",
+        pickup_state: "not_found",
+      }),
+    ).toEqual({ pickup_city: "Barnesville" });
   });
 });
 

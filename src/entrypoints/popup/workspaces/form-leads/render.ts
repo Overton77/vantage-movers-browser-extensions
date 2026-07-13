@@ -226,6 +226,10 @@ function formLeadRowFields(row: FollowUpRow): Record<string, string> {
     customer: row.customer ?? "",
     phone: row.phone ?? "",
     email: row.email ?? "",
+    from: row.from ?? "",
+    from_zip: row.fromZip ?? "",
+    to: row.to ?? "",
+    to_zip: row.toZip ?? "",
     sales_rep_raw: row.salesRepRaw ?? "",
   };
 }
@@ -316,6 +320,10 @@ export function renderFormLeadsLogTables(app: AppContext): void {
     customer: row.customer || "",
     phone: row.phone || "",
     email: row.email || "",
+    from: row.from || "",
+    from_zip: row.fromZip || "",
+    to: row.to || "",
+    to_zip: row.toZip || "",
     sales_rep_raw: row.salesRepRaw || "",
     status: row.status,
     reason: row.reason || "",

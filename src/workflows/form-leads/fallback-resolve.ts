@@ -68,6 +68,20 @@ function flattenSearchMatch(raw: RawSearchMatch): FormLeadSearchMatch {
       ref_no: typeof lead.ref_no === "string" ? lead.ref_no : undefined,
       quoted: typeof lead.quoted === "boolean" ? lead.quoted : undefined,
       cubic_feet: typeof lead.cubic_feet === "number" ? lead.cubic_feet : undefined,
+      pickup_city:
+        typeof lead.pickup_city === "string" ? lead.pickup_city : undefined,
+      pickup_zip:
+        typeof lead.pickup_zip === "string" ? lead.pickup_zip : undefined,
+      pickup_state:
+        typeof lead.pickup_state === "string" ? lead.pickup_state : undefined,
+      delivery_city:
+        typeof lead.delivery_city === "string" ? lead.delivery_city : undefined,
+      destination_zip:
+        typeof lead.destination_zip === "string"
+          ? lead.destination_zip
+          : undefined,
+      delivery_state:
+        typeof lead.delivery_state === "string" ? lead.delivery_state : undefined,
       duplicate: lead.duplicate === true,
       booked:
         lead.booked === null || typeof lead.booked === "string"
@@ -129,6 +143,12 @@ export function searchMatchToLookup(
     ref_no: match.ref_no,
     quoted: match.quoted,
     cubic_feet: match.cubic_feet,
+    pickup_city: match.pickup_city,
+    pickup_zip: match.pickup_zip,
+    pickup_state: match.pickup_state,
+    delivery_city: match.delivery_city,
+    destination_zip: match.destination_zip,
+    delivery_state: match.delivery_state,
     booked: match.booked,
     duplicate: match.duplicate,
     receiver_agent: match.receiver_agent,

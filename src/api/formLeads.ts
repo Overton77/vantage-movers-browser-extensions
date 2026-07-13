@@ -6,6 +6,12 @@ export type FormLeadLookup = {
   ref_no?: string;
   quoted?: boolean;
   cubic_feet?: number;
+  pickup_city?: string;
+  pickup_zip?: string;
+  pickup_state?: string;
+  delivery_city?: string;
+  destination_zip?: string;
+  delivery_state?: string;
   /** True when this submission was quarantined as a duplicate (not synced to CRM). */
   duplicate?: boolean;
   /**
@@ -24,6 +30,12 @@ export type FormLeadLookup = {
 export type FormLeadUpdatePayload = {
   quoted?: boolean;
   cubic_feet?: number;
+  pickup_city?: string;
+  pickup_zip?: string;
+  pickup_state?: string;
+  delivery_city?: string;
+  destination_zip?: string;
+  delivery_state?: string;
   receiver_agent?: string;
   receiver_agent_source?: "extension_crm_username_match";
   receiver_agent_source_value?: string;
@@ -44,6 +56,12 @@ export type FormLeadSearchMatch = {
   crm_source_label_snapshot?: string;
   quoted?: boolean;
   cubic_feet?: number;
+  pickup_city?: string;
+  pickup_zip?: string;
+  pickup_state?: string;
+  delivery_city?: string;
+  destination_zip?: string;
+  delivery_state?: string;
   duplicate?: boolean;
   booked?: string | null;
   receiver_agent?: string | null;
