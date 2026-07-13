@@ -331,4 +331,20 @@ describe("leadMessaging", () => {
     );
     expect(formatSalesRepState(undefined, undefined, [])).toBe("Sales Rep: none");
   });
+
+  it("hides call-lead location fields from owner-facing update details", () => {
+    expect(
+      formatSyncOutcome("updateable", [
+        "pickup_city missing -> Barnesville",
+        "delivery_city missing -> Atlanta",
+        "delivery_zip missing -> 30301",
+      ]),
+    ).toBe("Will update");
+    expect(
+      formatSyncOutcome("updated", [
+        "pickup_state missing -> GA",
+        "cubic_feet 200 -> 300",
+      ]),
+    ).toBe("Updated: cubic_feet");
+  });
 });

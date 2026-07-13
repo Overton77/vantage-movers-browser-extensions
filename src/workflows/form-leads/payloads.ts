@@ -278,8 +278,32 @@ export function buildUnchangedMessage(candidate: LeadSyncCandidate): string {
   return parts.join(", ");
 }
 
-export function buildUpdatedMessage(payload: FormLeadUpdatePayload): string {
-  return Object.entries(payload)
+export function buildUpdatedMessage(
+  payload: FormLeadUpdatePayload,
+  current: Partial<FormLeadLookup> = {},
+): string {
+  const visibleUpdates = Object.entries(payload)
+    .filter(([field]) => isOwnerVisibleUpdate(field, current))
     .map(([field, value]) => `Updated ${field}=${value}`)
     .join(", ");
+  return visibleUpdates || "Updated lead";
 }
+
+function isOwnerVisibleUpdate(
+  field: string,
+  current: Partial<FormLeadLookup>,
+): boolean {
+  if (field === "pickup_state" || field === "delivery_state") {
+    return current[field]?.trim().toLowerCase() === "not_found";
+  }
+  return !FORM_LEAD_LOCATION_FIELDS.has(field);
+}
+
+const FORM_LEAD_LOCATION_FIELDS = new Set([
+  "pickup_city",
+  "pickup_zip",
+  "pickup_state",
+  "delivery_city",
+  "destination_zip",
+  "delivery_state",
+]);

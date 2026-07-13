@@ -99,7 +99,7 @@ export async function syncLeadCandidates(
         onResult(candidate.id, {
           status: "updated",
           message: appendReceiverMessage(
-            buildUpdatedMessage(changedPayload),
+            buildUpdatedMessage(changedPayload, current),
             receiverMatch.message,
           ),
           current: updatedCurrent,

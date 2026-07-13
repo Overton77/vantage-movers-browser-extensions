@@ -40,11 +40,14 @@ export function callEnrichmentRowToCycleDetail(
         : result.status === "failed" || result.status === "conflict"
           ? "failed"
           : "skipped";
+  const visibleChanges = result.changes.filter(
+    (change) => !isLocationChange(change),
+  );
 
   const messageParts = [
     fragments,
     result.message,
-    result.changes.length ? `changes: ${result.changes.join(", ")}` : undefined,
+    visibleChanges.length ? `changes: ${visibleChanges.join(", ")}` : undefined,
   ].filter(Boolean);
 
   return {
@@ -92,11 +95,14 @@ export function bookedReconciliationRowToCycleDetail(
             result.status === "invalid"
           ? "failed"
           : "skipped";
+  const visibleChanges = result.changes.filter(
+    (change) => !isLocationChange(change),
+  );
 
   const messageParts = [
     fragments,
     result.message,
-    result.changes.length ? `changes: ${result.changes.join(", ")}` : undefined,
+    visibleChanges.length ? `changes: ${visibleChanges.join(", ")}` : undefined,
   ].filter(Boolean);
 
   return {
@@ -105,4 +111,11 @@ export function bookedReconciliationRowToCycleDetail(
     status,
     message: messageParts.join(" · "),
   };
+}
+
+function isLocationChange(change: string): boolean {
+  const field = (change.trim().split(/\s+/)[0] ?? "").replace(/[:=,]/g, "");
+  return /^(?:lead\.|booking\.)?(?:pickup_city|pickup_state|pickup_zip|delivery_city|delivery_state|delivery_zip|destination_zip|from|from_zip|to|to_zip)$/i.test(
+    field,
+  );
 }

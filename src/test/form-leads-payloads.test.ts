@@ -452,4 +452,25 @@ describe("messages", () => {
       "Updated cubic_feet=400",
     );
   });
+
+  it("hides location details except not_found state replacements", () => {
+    expect(
+      buildUpdatedMessage(
+        {
+          pickup_city: "Barnesville",
+          pickup_state: "GA",
+          delivery_city: "Atlanta",
+          delivery_state: "GA",
+          destination_zip: "30301",
+        },
+        {
+          pickup_state: "not_found",
+          delivery_state: undefined,
+        },
+      ),
+    ).toBe("Updated pickup_state=GA");
+    expect(buildUpdatedMessage({ pickup_city: "Barnesville" })).toBe(
+      "Updated lead",
+    );
+  });
 });

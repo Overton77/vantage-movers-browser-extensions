@@ -170,6 +170,25 @@ describe("callEnrichmentRowToCycleDetail", () => {
     );
     expect(detail.status).toBe("failed");
   });
+
+  it("omits location changes from cycle history", () => {
+    const detail = callEnrichmentRowToCycleDetail(
+      enrichmentPreview({
+        result: {
+          row_id: "call-1",
+          status: "updated",
+          message: "Updated call lead",
+          changes: ["pickup_city", "delivery_city", "delivery_zip", "cubic_feet"],
+          warnings: [],
+        },
+      }),
+    );
+
+    expect(detail.message).toContain("changes: cubic_feet");
+    expect(detail.message).not.toContain("pickup_city");
+    expect(detail.message).not.toContain("delivery_city");
+    expect(detail.message).not.toContain("delivery_zip");
+  });
 });
 
 describe("bookedReconciliationRowToCycleDetail", () => {

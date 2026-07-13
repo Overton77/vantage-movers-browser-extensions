@@ -136,6 +136,8 @@ export type FormLeadMatchMethod = "mongo_id" | "phone_and_email" | "none";
 export type FormLeadRowPreview = {
   state: FormLeadMatchState;
   current?: FormLeadLookup;
+  /** True when sync has any lead-field diff, including owner-hidden location details. */
+  hasChanges?: boolean;
   changes: string[];
   message: string;
   error?: string;

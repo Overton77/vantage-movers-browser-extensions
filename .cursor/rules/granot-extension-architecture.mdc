@@ -48,6 +48,11 @@ alwaysApply: false
 - Preserve the row-level outcome vocabulary already used by the workflows and cycle history.
 - If a task touches workflow internals, check the matching service rule first rather than duplicating that logic here.
 
+## Location Enrichment Policy
+
+- Form leads and call leads use different location backfill rules. Form leads are created with required ZIPs and default `pickup_state` / `delivery_state` to `"not_found"` when lookup fails (`vantage-main-server/api/models/FormLead.ts`). The extension backfills cities, states, and ZIPs **only for missing values** in `src/workflows/form-leads/payloads.ts`.
+- Call leads are created unenriched from telephony (`vantage-main-server/api/models/CallLead.ts`); location fields are optional and usually empty. Granot enrichment and booked reconciliation send `from` / `from_zip` / `to` / `to_zip` to the server, which parses and writes any differing field. Do not port the form-lead `"not_found"`-only guard to call-lead server enrichment.
+
 ## Browser Loading Notes
 
 - Prod output folders are `.output/chrome-mv3/` from `pnpm build` and `.output/firefox-mv2/` from `pnpm build:firefox`.

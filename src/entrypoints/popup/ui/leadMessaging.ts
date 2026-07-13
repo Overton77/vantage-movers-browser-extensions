@@ -363,19 +363,24 @@ export function formatSyncOutcome(
   message?: string,
   canSync = false,
 ): string {
+  const visibleChanges = changes.filter((change) => !isLocationChange(change));
   switch (status) {
     case "updated":
-      return changes.length > 0
-        ? `Updated: ${formatChangedFields(changes)}`
+      return visibleChanges.length > 0
+        ? `Updated: ${formatChangedFields(visibleChanges)}`
+        : changes.length > 0
+          ? "Updated"
         : message
           ? `Updated: ${message}`
           : "Updated";
     case "unchanged":
       return "Unchanged";
     case "updateable":
-      return changes.length > 0
-        ? `Will update: ${formatChangedFields(changes)}`
-        : "Unchanged";
+      return visibleChanges.length > 0
+        ? `Will update: ${formatChangedFields(visibleChanges)}`
+        : changes.length > 0
+          ? "Will update"
+          : "Unchanged";
     case "failed":
       return message ? `Failed: ${message}` : "Failed";
     case "conflict":
@@ -430,6 +435,7 @@ function formatFormSyncState(
   if (!syncable) return "Needs review";
   if (!preview) return "Will update";
   if (preview.changes.length > 0) return `Will update: ${formatChangedFields(preview.changes)}`;
+  if (preview.hasChanges) return "Will update";
   if (preview.state === "idempotent" || preview.state === "has_booking" || preview.state === "found_by_fallback") {
     return "Unchanged";
   }
@@ -445,6 +451,7 @@ function formatFormExpandedSyncLine(
   if (result) return formatSyncOutcome(result.status, [], result.message, true);
   if (!preview) return row.reason ? `Needs review: ${row.reason}` : "Sync state is not available yet.";
   if (preview.changes.length > 0) return `Sync will update ${formatChangedFields(preview.changes)}.`;
+  if (preview.hasChanges) return "Sync will update the form lead.";
   if (preview.resolvedVantageId) return "Sync is unchanged: Vantage already matches this row.";
   return preview.message;
 }
@@ -487,6 +494,13 @@ function formatCallLeadSourceMismatch(
 function isSourceMetadataChange(change: string): boolean {
   return /(?:^|\.)?(source_company|lead_source_company|source_granularity_id|source_granularity_key|source_company_label_snapshot|source_granularity_label_snapshot|crm_source_label_snapshot)\b/i.test(
     change,
+  );
+}
+
+function isLocationChange(change: string): boolean {
+  const field = extractFieldName(change);
+  return /^(?:lead\.|booking\.)?(?:pickup_city|pickup_state|pickup_zip|delivery_city|delivery_state|delivery_zip|destination_zip|from|from_zip|to|to_zip)$/i.test(
+    field,
   );
 }
 

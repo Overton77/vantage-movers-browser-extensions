@@ -95,4 +95,41 @@ describe("buildFormLeadRowPreview", () => {
       "cubic_feet missing → 300",
     ]);
   });
+
+  it("only reports location updates when replacing a not_found state", () => {
+    const preview = buildFormLeadRowPreview(
+      makeRow({
+        from: "Barnesville,GA",
+        fromZip: "30201",
+        to: "Atlanta,GA",
+        toZip: "30301",
+      }),
+      makeLookup({
+        pickup_city: undefined,
+        pickup_state: "not_found",
+        pickup_zip: "30201",
+        delivery_city: undefined,
+        delivery_state: undefined,
+        destination_zip: "30301",
+      }),
+    );
+
+    expect(preview.changes).toEqual(["pickup_state not_found → GA"]);
+    expect(preview.message).not.toContain("pickup_city");
+    expect(preview.message).not.toContain("delivery_city");
+    expect(preview.message).not.toContain("delivery_state");
+  });
+
+  it("keeps hidden city-only updates actionable without naming the city field", () => {
+    const preview = buildFormLeadRowPreview(
+      makeRow({ from: "Barnesville,GA" }),
+      makeLookup({ pickup_city: undefined, pickup_state: "GA" }),
+    );
+
+    expect(preview.state).toBe("will_update");
+    expect(preview.hasChanges).toBe(true);
+    expect(preview.changes).toEqual([]);
+    expect(preview.message).toContain("Sync will update the form lead");
+    expect(preview.message).not.toContain("pickup_city");
+  });
 });
