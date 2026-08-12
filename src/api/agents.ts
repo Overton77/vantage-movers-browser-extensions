@@ -23,6 +23,8 @@ export type CreateAgentInput = {
   name: string;
   role?: string;
   active?: boolean;
+  /** Granot CRM `user`/`rep` login used for receiver_agent matching. */
+  granot_crm_username?: string;
   /**
    * Provenance override. Pass `"extension_sales_rep_match"` when creating an
    * agent from the Sales Rep create/edit dialog so it's distinguishable from

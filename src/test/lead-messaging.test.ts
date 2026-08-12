@@ -287,19 +287,24 @@ describe("leadMessaging", () => {
     expect(card.lines.join(" ")).toContain("Sales Rep: Nick");
   });
 
-  it("shows a source mismatch message for call enrichment source changes", () => {
+  it("shows a source mismatch message for call enrichment source conflicts", () => {
     const card = buildCallLeadCollapsedModel(
       makeCallRow({ values: { ...makeCallRow().values, source: "Top10 Forms" } }),
       "followUp",
       makeEnrichmentResult({
-        changes: ["source_company", "cubic_feet"],
+        status: "conflict",
+        message:
+          "Matched call lead has source Main Site Inbounds; CRM row source maps to Top10 Forms.",
+        match_method: "phone_only",
+        changes: [],
       }),
-      true,
+      false,
     );
 
     expect(card.lines.join(" ")).toContain(
       'Source mismatch: CRM source "Top10 Forms" differs from the matched Vantage source.',
     );
+    expect(card.lines.join(" ")).toContain("Needs review");
   });
 
   it("shows a source mismatch message for booked call source conflicts", () => {

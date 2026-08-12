@@ -477,6 +477,11 @@ function formatCallLeadSourceMismatch(
     return undefined;
   }
 
+  if (result.status === "conflict") {
+    const vantageSource = sourceDisplayLabel(result);
+    return `Source mismatch: CRM source "${crmSource}" differs from the matched Vantage source${vantageSource ? ` "${vantageSource}"` : ""}. Review this row before syncing.`;
+  }
+
   const hasLeadSourceChange = result.changes.some((change) =>
     isSourceMetadataChange(change),
   );

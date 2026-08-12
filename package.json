@@ -1,6 +1,6 @@
 {
   "name": "granot-sync-extension",
-  "version": "0.2.3",
+  "version": "0.2.5",
   "private": true,
   "packageManager": "pnpm@10.13.1",
   "type": "module",
@@ -15,11 +15,6 @@
     "compile": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   },
   "devDependencies": {
     "@types/webextension-polyfill": "^0.12.3",

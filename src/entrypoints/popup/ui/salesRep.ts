@@ -15,6 +15,7 @@ import {
 import {
   matchAgentByCrmUsername,
   matchAgentsByFirstName,
+  normalizeGranotCrmUsername,
 } from "../../../workflows/agents/match";
 import type { SalesRepDialogState } from "../../../app/state";
 import type { AppContext } from "../app/context";
@@ -557,10 +558,12 @@ async function createAndLinkAgent(
   opts.rerender();
 
   try {
+    const crmUsername = normalizeGranotCrmUsername(opts.rawValue);
     const agent = await createAgent({
       name,
       role: dialogState.role.trim() || "agent",
       active: dialogState.active,
+      ...(crmUsername ? { granot_crm_username: crmUsername } : {}),
       created_from: "extension_sales_rep_match",
     });
     // Make the new agent immediately matchable elsewhere without a full reload.
