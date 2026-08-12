@@ -174,7 +174,7 @@ describe("leadMessaging", () => {
           "fallback",
           makeFormPreview({
             state: "found_by_fallback",
-            matchMethod: "phone_and_email",
+            matchMethod: "fallback",
           }),
         ],
         [
@@ -200,7 +200,7 @@ describe("leadMessaging", () => {
     );
   });
 
-  it("renders a form fallback row as matched by phone and email after ref_no failed", () => {
+  it("renders a form fallback row as source-gated", () => {
     const row = makeFormRow({
       status: "invalid_ref_no",
       refNo: "not provided",
@@ -208,13 +208,13 @@ describe("leadMessaging", () => {
     });
     const preview = makeFormPreview({
       state: "found_by_fallback",
-      matchMethod: "phone_and_email",
+      matchMethod: "fallback",
       current: makeLead({ booked: "booking-1", receiver_agent_name_snapshot: "Nick" }),
     });
 
     const card = buildFormLeadCollapsedModel(row, preview, undefined, true);
 
-    expect(card.lines.join(" ")).toContain("Matched by phone + email after ref_no failed");
+    expect(card.lines.join(" ")).toContain("Matched by source-gated fallback");
     expect(card.lines.join(" ")).toContain("Has booking");
     expect(card.lines.join(" ")).toContain("Sales Rep: Nick");
   });

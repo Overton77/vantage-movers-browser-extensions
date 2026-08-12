@@ -4,6 +4,7 @@ import { vantageFetch } from "./client";
 export type FormLeadLookup = {
   _id: string;
   ref_no?: string;
+  source_company?: string;
   quoted?: boolean;
   cubic_feet?: number;
   pickup_city?: string;
@@ -39,6 +40,18 @@ export type FormLeadUpdatePayload = {
   receiver_agent?: string;
   receiver_agent_source?: "extension_crm_username_match";
   receiver_agent_source_value?: string;
+};
+
+export type GranotFormLeadExpectedSnapshot = {
+  quoted: boolean | null;
+  cubic_feet: number | null;
+  pickup_city: string | null;
+  pickup_zip: string | null;
+  pickup_state: string | null;
+  delivery_city: string | null;
+  destination_zip: string | null;
+  delivery_state: string | null;
+  receiver_agent: string | null;
 };
 
 /** A single candidate returned by `POST /api/v1/form-leads/search`. */
@@ -96,6 +109,37 @@ export type FormLeadSearchBody = {
   limit?: number;
 };
 
+export type GranotFormLeadMatchMethod =
+  | "ref_no_exact"
+  | "mongo_id"
+  | "fallback"
+  | "none";
+
+export type GranotFormLeadMatchBody = {
+  ref_no?: string;
+  phone_number?: string;
+  email?: string;
+  name?: string;
+  source_label: string;
+  prior?: string;
+};
+
+export type GranotFormLeadMatchResult =
+  | {
+      status: "found";
+      match_method: Exclude<GranotFormLeadMatchMethod, "none">;
+      lead: FormLeadLookup;
+      candidate_count: number;
+      warnings: string[];
+    }
+  | {
+      status: "conflict" | "no_match";
+      match_method: "none";
+      candidate_count: number;
+      reason: string;
+      warnings: string[];
+    };
+
 export async function getFormLeadById(id: string): Promise<FormLeadLookup> {
   const envelope = await vantageFetch<FormLeadLookup>(
     `/api/v1/form-leads/${id}`,
@@ -122,6 +166,26 @@ export async function updateFormLead(
   return envelope.data;
 }
 
+export async function syncGranotFormLead(
+  id: string,
+  patch: FormLeadUpdatePayload,
+  expectedSourceCompany: string,
+  expectedSnapshot: GranotFormLeadExpectedSnapshot,
+): Promise<FormLeadLookup> {
+  const envelope = await vantageFetch<FormLeadLookup>(
+    `/api/v1/form-leads/${encodeURIComponent(id)}/granot-sync`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        patch,
+        expected_source_company: expectedSourceCompany,
+        expected_snapshot: expectedSnapshot,
+      }),
+    },
+  );
+  return envelope.data;
+}
+
 /**
  * Scored fallback search used when a Granot `ref_no` is not a current Vantage
  * Mongo id. Sends only the provided fields (the server requires at least one of
@@ -138,5 +202,18 @@ export async function searchFormLeads(
     },
   );
 
+  return envelope.data;
+}
+
+export async function resolveGranotFormLead(
+  body: GranotFormLeadMatchBody,
+): Promise<GranotFormLeadMatchResult> {
+  const envelope = await vantageFetch<GranotFormLeadMatchResult>(
+    "/api/v1/form-leads/granot-match",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
   return envelope.data;
 }

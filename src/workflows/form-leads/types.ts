@@ -2,7 +2,10 @@
 // tables and the Form Edit Lead page). Extracted from popup/main.ts in Unit 02
 // so workflow logic and future background sync can depend on them without
 // importing the popup entrypoint.
-import type { FormLeadLookup } from "../../utils/api";
+import type {
+  FormLeadLookup,
+  GranotFormLeadMatchMethod,
+} from "../../utils/api";
 
 export type LeadStatus =
   | "syncable"
@@ -91,6 +94,8 @@ export type LeadSyncCandidate = {
    * `_id` returned by search, which must never be the Granot `refNo` string.
    */
   vantageId?: string;
+  /** Source observed during authoritative resolution; apply fails closed if it drifts. */
+  expectedSourceCompany?: string;
 };
 
 export type CurrentLeadPreview = {
@@ -127,11 +132,12 @@ export type FormLeadMatchState =
 
 /**
  * How a Vantage form lead was located for a Granot row.
- * - `mongo_id`: the Granot `ref_no` resolved directly via `GET /form-leads/:id`.
- * - `phone_and_email`: recovered by `POST /form-leads/search` using fallback fields.
+ * - `ref_no_exact`: Granot `ref_no` matched `FormLead.ref_no`.
+ * - `mongo_id`: Granot `ref_no` resolved as Mongo `_id`.
+ * - `fallback`: recovered by source-gated phone/email/name search.
  * - `none`: no match (or not yet resolved).
  */
-export type FormLeadMatchMethod = "mongo_id" | "phone_and_email" | "none";
+export type FormLeadMatchMethod = GranotFormLeadMatchMethod;
 
 export type FormLeadRowPreview = {
   state: FormLeadMatchState;
@@ -147,6 +153,7 @@ export type FormLeadRowPreview = {
   resolvedVantageId?: string;
   /** Number of fallback candidates the server returned (used to detect conflicts). */
   matchCount?: number;
+  warnings?: string[];
 };
 
 export type SyncCounts = {

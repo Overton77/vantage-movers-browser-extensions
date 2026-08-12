@@ -15,16 +15,14 @@ import {
   getFormLeadById,
   previewBookedCallLeadReconciliation,
   previewCallLeadEnrichment,
-  searchFormLeads,
+  resolveGranotFormLead,
   syncBookedCallLeadReconciliation,
   syncCallLeadEnrichment,
-  updateFormLead,
+  syncGranotFormLead as updateFormLead,
 } from "../utils/api";
 import { loadAgentsForReceiverMatching } from "../workflows/agents/loadForReceiverMatching";
 import type { ListWorkspaceId } from "../app/state";
 import {
-  isDirectFormLeadRowSyncable,
-  isReceiverAgentEnrichmentSyncable,
   isRowSyncable,
   rowToSyncCandidate,
 } from "../workflows/form-leads/payloads";
@@ -224,18 +222,18 @@ async function runFormLeadsCycle(
   // Always preview with fallback search so cycle history shows recovered and
   // ambiguous (conflict) matches even when fallback sync is disabled.
   const previews = await previewFormLeadRows(rows, {
-    getFormLeadById,
-    searchFormLeads,
+    resolveGranotFormLead,
   });
 
   // When fallback is allowed, fallback-recovered rows become syncable;
   // otherwise only direct Mongo-id rows are syncable (conservative default).
-  const syncableRows = rows.filter((row) =>
-    allowFallback
-      ? isRowSyncable(row, previews.get(row.id))
-      : isDirectFormLeadRowSyncable(row) ||
-        isReceiverAgentEnrichmentSyncable(row, previews.get(row.id)),
-  );
+  const syncableRows = rows.filter((row) => {
+    const preview = previews.get(row.id);
+    return (
+      isRowSyncable(row, preview) &&
+      (allowFallback || preview?.matchMethod !== "fallback")
+    );
+  });
 
   if (settings.safety.previewOnly) {
     const details = rows.map((row) =>

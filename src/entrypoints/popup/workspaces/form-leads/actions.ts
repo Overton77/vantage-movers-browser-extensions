@@ -5,8 +5,8 @@
 // Extracted from `popup/main.ts` in Unit 07.
 import {
   getFormLeadById,
-  searchFormLeads,
-  updateFormLead,
+  resolveGranotFormLead,
+  syncGranotFormLead as updateFormLead,
 } from "../../../../utils/api";
 import {
   filterSelectedSyncableRows,
@@ -131,8 +131,7 @@ export async function previewFormLeadRows(
   rows: FollowUpRow[],
 ): Promise<void> {
   const previews = await runFormLeadPreview(rows, {
-    getFormLeadById,
-    searchFormLeads,
+    resolveGranotFormLead,
   });
   for (const [id, preview] of previews) {
     app.state.formLeads.previews.set(id, preview);

@@ -119,7 +119,7 @@ describe("rowToSyncCandidate", () => {
       state: "found_by_fallback",
       changes: [],
       message: "",
-      matchMethod: "phone_and_email",
+      matchMethod: "fallback",
       resolvedVantageId: "resolved-id",
     });
     expect(candidate.vantageId).toBe("resolved-id");
@@ -193,36 +193,46 @@ describe("isRowSyncable", () => {
     expect(isRowSyncable(row, preview)).toBe(true);
   });
 
-  it("is true for prior 1 direct rows", () => {
-    expect(isRowSyncable(makeRow({ prior: "1" }))).toBe(true);
+  it("requires an identity-resolved preview for prior 1 rows", () => {
+    const row = makeRow({ prior: "1" });
+    expect(isRowSyncable(row)).toBe(false);
+    expect(
+      isRowSyncable(row, {
+        state: "idempotent",
+        changes: [],
+        message: "",
+        matchMethod: "ref_no_exact",
+        resolvedVantageId: "resolved-id",
+      }),
+    ).toBe(true);
   });
 
-  it("is true for a resolved conflict fallback preview", () => {
+  it("blocks conflicted fallback previews even if they carry an id", () => {
     const row = makeRow({
       prior: "1",
-      status: "invalid_ref_no",
-      quoted: undefined,
+      status: "syncable",
+      quoted: true,
     });
     expect(
       isRowSyncable(row, {
         state: "conflict",
         changes: ["quoted false → true"],
         message: "Ambiguous fallback match: 2 form leads matched this phone/email.",
-        matchMethod: "phone_and_email",
+        matchMethod: "fallback",
         resolvedVantageId: "top10-id",
         matchCount: 2,
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isFallbackSyncable(row, {
         state: "conflict",
         changes: [],
         message: "",
-        matchMethod: "phone_and_email",
+        matchMethod: "fallback",
         resolvedVantageId: "top10-id",
         matchCount: 2,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 
@@ -394,7 +404,22 @@ describe("filterSelectedSyncableRows", () => {
     const selected = new Set(["syncable", "prior0"]);
 
     expect(
-      filterSelectedSyncableRows(rows, selected, new Map()).map((row) => row.id),
+      filterSelectedSyncableRows(
+        rows,
+        selected,
+        new Map([
+          [
+            "syncable",
+            {
+              state: "idempotent",
+              changes: [],
+              message: "",
+              matchMethod: "ref_no_exact",
+              resolvedVantageId: "resolved-id",
+            },
+          ],
+        ]),
+      ).map((row) => row.id),
     ).toEqual(["syncable"]);
   });
 

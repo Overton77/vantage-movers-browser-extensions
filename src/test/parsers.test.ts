@@ -43,22 +43,22 @@ describe("Granot HTML fixtures", () => {
 });
 
 describe("parseFormLeadRows (Booked Jobs / Follow Up Estimates)", () => {
-  it("parses Booked Jobs rows with correct syncable/invalid statuses", () => {
+  it("treats provider and Mongo refs as identity candidates", () => {
     const result = parseFormLeadRows(parseHtml(bookedJobsHtml));
 
     expect(result.tableFound).toBe(true);
     expect(result.rows).toHaveLength(2);
     expect(result.counts).toEqual({
       total: 2,
-      syncable: 1,
-      invalid: 1,
+      syncable: 2,
+      invalid: 0,
       unsupported: 0,
     });
 
-    const [invalidRow, syncableRow] = result.rows;
-    expect(invalidRow.tableSource).toBe("bookedJobs");
-    expect(invalidRow.refNo).toBe("Mob_t3ePdBDVFn");
-    expect(invalidRow.status).toBe("invalid_ref_no");
+    const [providerRefRow, syncableRow] = result.rows;
+    expect(providerRefRow.tableSource).toBe("bookedJobs");
+    expect(providerRefRow.refNo).toBe("Mob_t3ePdBDVFn");
+    expect(providerRefRow.status).toBe("syncable");
 
     expect(syncableRow.refNo).toBe("6a1743a401a95dbdc5bd8797");
     expect(syncableRow.prior).toBe("5");
@@ -70,19 +70,19 @@ describe("parseFormLeadRows (Booked Jobs / Follow Up Estimates)", () => {
     expect(syncableRow.fromZip).toBe("60647");
     expect(syncableRow.to).toBe("Cincinnati,OH");
     expect(syncableRow.toZip).toBe("45227");
-    expect(invalidRow.salesRepRaw).toBe("JACOB");
+    expect(providerRefRow.salesRepRaw).toBe("JACOB");
     expect(syncableRow.salesRepRaw).toBe("MIKEM");
   });
 
-  it("parses Follow Up Estimates rows (all invalid ref_no in fixture)", () => {
+  it("validates prior independently from ref_no shape", () => {
     const result = parseFormLeadRows(parseHtml(followUpEstimatesHtml));
 
     expect(result.tableFound).toBe(true);
     expect(result.rows).toHaveLength(3);
     expect(result.rows.map((row) => row.status)).toEqual([
-      "invalid_ref_no",
-      "invalid_ref_no",
-      "invalid_ref_no",
+      "syncable",
+      "unsupported_prior",
+      "unsupported_prior",
     ]);
     // "Pool" is a non-numeric prior that is preserved as-is.
     expect(result.rows[1].prior).toBe("Pool");
@@ -90,9 +90,9 @@ describe("parseFormLeadRows (Booked Jobs / Follow Up Estimates)", () => {
     expect(result.rows[2].salesRepRaw).toBe("ROY");
     expect(result.counts).toEqual({
       total: 3,
-      syncable: 0,
-      invalid: 3,
-      unsupported: 0,
+      syncable: 1,
+      invalid: 0,
+      unsupported: 2,
     });
   });
 

@@ -18,6 +18,7 @@ function makeCandidate(
     quoted: true,
     cubicFeet: 300,
     status: "syncable",
+    expectedSourceCompany: "top10_leads",
     ...overrides,
   };
 }
@@ -26,6 +27,7 @@ function makeLookup(overrides: Partial<FormLeadLookup> = {}): FormLeadLookup {
   return {
     _id: "ref-1",
     ref_no: "ref-1",
+    source_company: "top10_leads",
     quoted: true,
     cubic_feet: 300,
     booked: null,
@@ -66,7 +68,7 @@ describe("syncLeadCandidates", () => {
     expect(updateFormLead).toHaveBeenCalledWith("ref-1", {
       quoted: true,
       cubic_feet: 400,
-    } satisfies FormLeadUpdatePayload);
+    } satisfies FormLeadUpdatePayload, "top10_leads", expect.any(Object));
     expect(results["row-1"].status).toBe("updated");
     expect(counts).toEqual({ updated: 1, unchanged: 0, failed: 0 });
   });
@@ -90,7 +92,7 @@ describe("syncLeadCandidates", () => {
     expect(updateFormLead).toHaveBeenCalledWith("ref-1", {
       quoted: true,
       cubic_feet: 300,
-    });
+    }, "top10_leads", expect.any(Object));
     expect(results["row-1"].status).toBe("unchanged");
     expect(counts).toEqual({ updated: 0, unchanged: 1, failed: 0 });
   });
@@ -118,7 +120,7 @@ describe("syncLeadCandidates", () => {
       receiver_agent: "agent-1",
       receiver_agent_source: "extension_crm_username_match",
       receiver_agent_source_value: "MIKEM",
-    } satisfies FormLeadUpdatePayload);
+    } satisfies FormLeadUpdatePayload, "top10_leads", expect.any(Object));
     expect(results["row-1"].status).toBe("updated");
     expect(results["row-1"].message).toContain("inactive Agent");
     expect(results["row-1"].current?.receiver_agent_name_snapshot).toBe("Mike M");
@@ -161,7 +163,7 @@ describe("syncLeadCandidates", () => {
       receiver_agent: "agent-1",
       receiver_agent_source: "extension_crm_username_match",
       receiver_agent_source_value: "MIKEM",
-    } satisfies FormLeadUpdatePayload);
+    } satisfies FormLeadUpdatePayload, "top10_leads", expect.any(Object));
     expect(results["row-1"].status).toBe("updated");
     expect(results["row-1"].message).toContain("Matched active Agent");
     expect(counts).toEqual({ updated: 1, unchanged: 0, failed: 0 });
@@ -217,7 +219,7 @@ describe("syncLeadCandidates", () => {
     expect(updateFormLead).toHaveBeenCalledWith("ref-1", {
       quoted: true,
       cubic_feet: 300,
-    });
+    }, "top10_leads", expect.any(Object));
     expect(results["row-1"].message).toContain("did not overwrite");
   });
 
@@ -259,6 +261,31 @@ describe("syncLeadCandidates", () => {
     expect(results["row-1"].status).toBe("skipped");
     expect(results["row-1"].message).toContain("duplicate");
     expect(counts).toEqual({ updated: 0, unchanged: 0, failed: 0 });
+  });
+
+  it("fails closed when source_company changed after preview", async () => {
+    const updateFormLead = vi.fn(async () => makeLookup());
+    const results: Record<string, RowSyncResult> = {};
+    const counts = await syncLeadCandidates(
+      [
+        makeCandidate({
+          expectedSourceCompany: "top10_leads",
+        }),
+      ],
+      {
+        getFormLeadById: async () =>
+          makeLookup({ source_company: "tbm_leads" }),
+        updateFormLead,
+      },
+      (id, result) => {
+        results[id] = result;
+      },
+    );
+
+    expect(updateFormLead).not.toHaveBeenCalled();
+    expect(results["row-1"].status).toBe("failed");
+    expect(results["row-1"].message).toContain("changed after preview");
+    expect(counts).toEqual({ updated: 0, unchanged: 0, failed: 1 });
   });
 
   it("counts an API failure as failed", async () => {

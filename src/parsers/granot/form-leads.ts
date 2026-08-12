@@ -8,7 +8,6 @@ import {
   getOwnTableRows,
   getCellTexts,
   isLeadLikeRow,
-  MONGO_OBJECT_ID_RE,
   normalizeCellText,
   parseCubicFeet,
   type FormLeadHeader,
@@ -175,15 +174,6 @@ function readRowsFromTable(
         ...baseRow,
         status: "missing_prior",
         reason: "Missing prior value",
-      });
-      continue;
-    }
-
-    if (!MONGO_OBJECT_ID_RE.test(refNo)) {
-      rows.push({
-        ...baseRow,
-        status: "invalid_ref_no",
-        reason: "Missing or invalid Mongo ObjectId in ref_no column",
       });
       continue;
     }

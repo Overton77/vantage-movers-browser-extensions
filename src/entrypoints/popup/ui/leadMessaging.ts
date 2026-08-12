@@ -14,6 +14,7 @@ import type {
   FormLeadRowPreview,
   RowSyncResult,
 } from "../../../workflows/form-leads/types";
+import { isRowSyncable } from "../../../workflows/form-leads/payloads";
 
 export type SummaryMetric = {
   label: string;
@@ -276,6 +277,9 @@ export function buildFormLeadExpandedSummary(
       salesRep.warnings,
     ),
   );
+  for (const warning of preview?.warnings ?? []) {
+    lines.push(`Warning: ${warning}`);
+  }
 
   return {
     title: "Row Summary",
@@ -339,10 +343,12 @@ export function formatMatchMethod(
   method: FormLeadMatchMethod | CallLeadMatchMethod | BookedCallLeadMatchMethod,
 ): string {
   switch (method) {
+    case "ref_no_exact":
+      return "Matched by exact ref_no";
     case "mongo_id":
-      return "Matched by ref_no";
-    case "phone_and_email":
-      return "Matched by phone + email after ref_no failed";
+      return "Matched by Mongo id";
+    case "fallback":
+      return "Matched by source-gated fallback";
     case "phone_and_job_no":
       return "Matched by phone + job_no";
     case "phone_only":
@@ -563,13 +569,7 @@ function isFormRowSyncableForMetrics(
   row: FollowUpRow,
   preview: FormLeadRowPreview | undefined,
 ): boolean {
-  if (row.prior !== "1" && row.prior !== "5") return false;
-  if (row.status === "syncable" && typeof row.quoted === "boolean") return true;
-  return Boolean(
-    preview?.matchMethod === "phone_and_email" &&
-      preview.resolvedVantageId &&
-      (preview.state === "found_by_fallback" || preview.state === "conflict"),
-  );
+  return isRowSyncable(row, preview);
 }
 
 function rowCardTone(status: string | undefined, canSync: boolean): RowStatusCard["tone"] {

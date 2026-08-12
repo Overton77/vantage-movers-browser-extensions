@@ -2,11 +2,8 @@
 // parsed Granot row against the current Vantage form lead. Pure / UI-free: the
 // popup turns the returned `state` + `message` into badges and copy.
 //
-// Supports two match methods:
-//   - `mongo_id`: the Granot `ref_no` resolved directly to a Vantage lead.
-//   - `phone_and_email`: the lead was recovered by fallback search after the id
-//     lookup failed. These are surfaced as `found_by_fallback` so the UI can
-//     clearly distinguish them and the resolved Vantage `_id` is preserved.
+// Supports the aligned match methods: exact provider ref, Mongo id, and
+// source-gated fallback. The resolved Vantage `_id` is always preserved.
 import type { FormLeadLookup } from "../../utils/api";
 import {
   buildFormLeadUpdatePayload,
@@ -26,12 +23,12 @@ export function buildFormLeadRowPreview(
   current: FormLeadLookup,
   matchMethod: FormLeadMatchMethod = "mongo_id",
 ): FormLeadRowPreview {
-  const isFallback = matchMethod === "phone_and_email";
-  // Fallback rows are marked invalid_ref_no, so `row.quoted` is undefined.
-  // Derive the intended value from `prior` to compute a meaningful diff.
+  const isFallback = matchMethod === "fallback";
   const intendedQuoted = isFallback
     ? deriveQuotedFromPrior(row.prior)
     : row.quoted;
+  const matchedBy =
+    matchMethod === "mongo_id" ? "by Mongo id" : "by exact ref_no";
 
   const hasBooking = Boolean(current.booked);
   const fieldSyncable = isFormLeadPriorSyncable(row.prior);
@@ -110,12 +107,12 @@ export function buildFormLeadRowPreview(
       resolvedVantageId,
       message:
         disabledFieldSyncNote
-          ? `Found form lead by ref_no; it has a booking attached (booking ${String(current.booked)}).${disabledFieldSyncNote}`
+          ? `Found form lead ${matchedBy}; it has a booking attached (booking ${String(current.booked)}).${disabledFieldSyncNote}`
           : !hasActualChanges
-          ? `Found form lead by ref_no; it has a booking attached (booking ${String(current.booked)}). Running sync is idempotent (no fields change).`
+          ? `Found form lead ${matchedBy}; it has a booking attached (booking ${String(current.booked)}). Running sync is idempotent (no fields change).`
           : changes.length > 0
-            ? `Found form lead by ref_no; it has a booking attached (booking ${String(current.booked)}). Running sync will refresh ${changes.join(", ")} on the form lead. The booking link is preserved.`
-            : `Found form lead by ref_no; it has a booking attached (booking ${String(current.booked)}). Running sync will update the form lead. The booking link is preserved.`,
+            ? `Found form lead ${matchedBy}; it has a booking attached (booking ${String(current.booked)}). Running sync will refresh ${changes.join(", ")} on the form lead. The booking link is preserved.`
+            : `Found form lead ${matchedBy}; it has a booking attached (booking ${String(current.booked)}). Running sync will update the form lead. The booking link is preserved.`,
     };
   }
 
@@ -129,8 +126,8 @@ export function buildFormLeadRowPreview(
       resolvedVantageId,
       message:
         disabledFieldSyncNote
-          ? `Found form lead by ref_no. No booking attached.${disabledFieldSyncNote}`
-          : "Found form lead by ref_no. No booking attached and quoted + cubic_feet already match the Granot row — sync is idempotent.",
+          ? `Found form lead ${matchedBy}. No booking attached.${disabledFieldSyncNote}`
+          : `Found form lead ${matchedBy}. No booking attached and quoted + cubic_feet already match the Granot row — sync is idempotent.`,
     };
   }
 
@@ -143,8 +140,8 @@ export function buildFormLeadRowPreview(
     resolvedVantageId,
     message:
       changes.length > 0
-        ? `Found form lead by ref_no. No booking attached. Sync will change ${changes.join(" and ")}.`
-        : "Found form lead by ref_no. No booking attached. Sync will update the form lead.",
+        ? `Found form lead ${matchedBy}. No booking attached. Sync will change ${changes.join(" and ")}.`
+        : `Found form lead ${matchedBy}. No booking attached. Sync will update the form lead.`,
   };
 }
 
@@ -154,8 +151,8 @@ export function buildConflictResolvedFallbackPreview(
   matchCount: number,
   resolutionReason: string,
 ): FormLeadRowPreview {
-  const base = buildFormLeadRowPreview(row, current, "phone_and_email");
-  const hasActualChanges = hasFormLeadChanges(row, current, "phone_and_email");
+  const base = buildFormLeadRowPreview(row, current, "fallback");
+  const hasActualChanges = hasFormLeadChanges(row, current, "fallback");
   const changeNote = !isFormLeadPriorSyncable(row.prior)
     ? ` Prior ${row.prior} is not quote/cubic syncable; sync can still update receiver_agent when the CRM username matches an Agent.`
     : !hasActualChanges
@@ -192,7 +189,7 @@ function hasFormLeadChanges(
   matchMethod: FormLeadMatchMethod,
 ): boolean {
   const intendedQuoted =
-    matchMethod === "phone_and_email"
+    matchMethod === "fallback"
       ? deriveQuotedFromPrior(row.prior)
       : row.quoted;
   const quoteChanged =

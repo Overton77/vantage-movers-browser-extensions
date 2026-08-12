@@ -85,10 +85,10 @@ export function isFallbackSyncable(
 ): boolean {
   return (
     !!preview &&
-    preview.matchMethod === "phone_and_email" &&
+    preview.matchMethod === "fallback" &&
     !!preview.resolvedVantageId &&
     deriveQuotedFromPrior(row.prior) !== undefined &&
-    (preview.state === "found_by_fallback" || preview.state === "conflict")
+    preview.state === "found_by_fallback"
   );
 }
 
@@ -99,8 +99,7 @@ export function isReceiverAgentEnrichmentSyncable(
 ): boolean {
   return Boolean(
     row.salesRepRaw?.trim() &&
-      preview?.matchMethod !== "none" &&
-      (preview?.resolvedVantageId || preview?.current?._id),
+      isIdentityResolvedPreview(preview),
   );
 }
 
@@ -119,8 +118,22 @@ export function isRowSyncable(
 ): boolean {
   const fieldSyncable =
     isFormLeadPriorSyncable(row.prior) &&
-    (isSyncableRow(row) || isFallbackSyncable(row, preview));
+    isSyncableRow(row) &&
+    isIdentityResolvedPreview(preview);
   return fieldSyncable || isReceiverAgentEnrichmentSyncable(row, preview);
+}
+
+function isIdentityResolvedPreview(
+  preview?: FormLeadRowPreview,
+): boolean {
+  return Boolean(
+    preview &&
+      ["has_booking", "idempotent", "will_update", "found_by_fallback"].includes(
+        preview.state,
+      ) &&
+      preview.matchMethod !== "none" &&
+      (preview.resolvedVantageId || preview.current?._id),
+  );
 }
 
 /** Selected rows that are eligible for sync (used by Sync Selected and auto-sync). */
@@ -140,7 +153,7 @@ export function rowToSyncCandidate(
   row: FollowUpRow,
   preview?: FormLeadRowPreview,
 ): LeadSyncCandidate {
-  const isFallback = preview?.matchMethod === "phone_and_email";
+  const isFallback = preview?.matchMethod === "fallback";
   const canSyncLeadFields = isFormLeadPriorSyncable(row.prior);
   const pickupLocation = parseGranotCityState(row.from);
   const deliveryLocation = parseGranotCityState(row.to);
@@ -176,6 +189,7 @@ export function rowToSyncCandidate(
     salesRepRaw: row.salesRepRaw,
     status: row.status,
     vantageId: preview?.resolvedVantageId ?? row.refNo,
+    expectedSourceCompany: preview?.current?.source_company,
   };
 }
 

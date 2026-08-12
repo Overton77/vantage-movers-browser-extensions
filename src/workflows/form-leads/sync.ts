@@ -4,7 +4,11 @@
 // API access is injected so the same logic can run from the popup or a future
 // background runner.
 import type { Agent } from "../../api/agents";
-import type { FormLeadLookup, FormLeadUpdatePayload } from "../../utils/api";
+import type {
+  FormLeadLookup,
+  FormLeadUpdatePayload,
+  GranotFormLeadExpectedSnapshot,
+} from "../../utils/api";
 import { matchAgentByCrmUsername } from "../agents/match";
 import {
   buildFormLeadSyncPayload,
@@ -20,6 +24,8 @@ export type FormLeadSyncContext = {
   updateFormLead: (
     id: string,
     payload: FormLeadUpdatePayload,
+    expectedSourceCompany: string,
+    expectedSnapshot: GranotFormLeadExpectedSnapshot,
   ) => Promise<FormLeadLookup>;
   agents?: Agent[];
 };
@@ -40,12 +46,29 @@ export async function syncLeadCandidates(
     const targetId = candidate.vantageId ?? candidate.refNo;
 
     try {
+      if (!candidate.expectedSourceCompany) {
+        throw new Error(
+          "Authoritative preview did not provide source_company; rescan before syncing.",
+        );
+      }
       const current = await context.getFormLeadById(targetId);
       if (isDuplicateQuarantineLead(current)) {
         onResult(candidate.id, {
           status: "skipped",
           message:
             "Skipped duplicate quarantined form lead — sync only applies to the canonical lead.",
+        });
+        continue;
+      }
+      if (
+        candidate.expectedSourceCompany &&
+        current.source_company !== candidate.expectedSourceCompany
+      ) {
+        failed += 1;
+        onResult(candidate.id, {
+          status: "failed",
+          message:
+            "Form lead source_company changed after preview; rescan before syncing.",
         });
         continue;
       }
@@ -79,8 +102,14 @@ export async function syncLeadCandidates(
         ...fieldUpdates,
         ...(receiverMatch.payload ?? {}),
       };
+      const updatedLead = await context.updateFormLead(
+        targetId,
+        syncPayload,
+        candidate.expectedSourceCompany,
+        buildExpectedSnapshot(current),
+      );
       const updatedCurrent = reflectReceiverAgentUpdate(
-        await context.updateFormLead(targetId, syncPayload),
+        updatedLead,
         receiverMatch,
       );
 
@@ -115,6 +144,22 @@ export async function syncLeadCandidates(
   }
 
   return { updated, unchanged, failed };
+}
+
+function buildExpectedSnapshot(
+  current: FormLeadLookup,
+): GranotFormLeadExpectedSnapshot {
+  return {
+    quoted: current.quoted ?? null,
+    cubic_feet: current.cubic_feet ?? null,
+    pickup_city: current.pickup_city ?? null,
+    pickup_zip: current.pickup_zip ?? null,
+    pickup_state: current.pickup_state ?? null,
+    delivery_city: current.delivery_city ?? null,
+    destination_zip: current.destination_zip ?? null,
+    delivery_state: current.delivery_state ?? null,
+    receiver_agent: current.receiver_agent ?? null,
+  };
 }
 
 function buildReceiverAgentUpdate(
