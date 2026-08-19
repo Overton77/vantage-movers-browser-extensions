@@ -4,19 +4,13 @@
 // effects; the actual scan/preview/sync logic lives in `workflows/form-leads`.
 // Extracted from `popup/main.ts` in Unit 07.
 import {
-  getFormLeadById,
+  applyGranotFormLead,
   resolveGranotFormLead,
-  syncGranotFormLead as updateFormLead,
 } from "../../../../utils/api";
-import {
-  filterSelectedSyncableRows,
-  isRowSyncable,
-  rowToSyncCandidate,
-} from "../../../../workflows/form-leads/payloads";
+import { isRowSyncable } from "../../../../workflows/form-leads/payloads";
 import { previewFormLeadRows as runFormLeadPreview } from "../../../../workflows/form-leads/preview";
 import { scanFollowUpRows } from "../../../../workflows/form-leads/scan";
 import { syncLeadCandidates as runSyncLeadCandidates } from "../../../../workflows/form-leads/sync";
-import { resolveAgentsForReceiverMatching } from "../../../../workflows/agents/loadForReceiverMatching";
 import type {
   FollowUpRow,
   ParseResponse,
@@ -145,9 +139,7 @@ export async function syncRows(
 ): Promise<SyncCounts | undefined> {
   const { dom } = app;
   const previews = app.state.formLeads.previews;
-  const syncableRows = rows
-    .filter((row) => isRowSyncable(row, previews.get(row.id)))
-    .map((row) => rowToSyncCandidate(row, previews.get(row.id)));
+  const syncableRows = rows.filter((row) => isRowSyncable(row, previews.get(row.id)));
   if (syncableRows.length === 0) {
     setStatus(dom, "No supported rows selected for sync.", { tone: "error" });
     return undefined;
@@ -159,11 +151,10 @@ export async function syncRows(
   setStatus(dom, `Syncing ${syncableRows.length} row(s)…`);
 
   try {
-    const agents = await resolveAgentsForReceiverMatching(app.state.agents);
-
     const results = await runSyncLeadCandidates(
       syncableRows,
-      { getFormLeadById, updateFormLead, agents },
+      previews,
+      { applyFormLead: applyGranotFormLead },
       (id, result) => {
         app.state.formLeads.syncResults.set(id, result);
         if (result.current) {

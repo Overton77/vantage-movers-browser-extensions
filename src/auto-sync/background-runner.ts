@@ -12,20 +12,19 @@
 //   - booked call reconciliation only runs behind its explicit setting
 //   - overlapping cycles are prevented by the storage lock
 import {
-  getFormLeadById,
+  applyBookedCallLeadReconciliation,
+  applyCallLeadEnrichment,
+  applyGranotFormLead,
   previewBookedCallLeadReconciliation,
   previewCallLeadEnrichment,
   resolveGranotFormLead,
-  syncBookedCallLeadReconciliation,
-  syncCallLeadEnrichment,
-  syncGranotFormLead as updateFormLead,
 } from "../utils/api";
-import { loadAgentsForReceiverMatching } from "../workflows/agents/loadForReceiverMatching";
 import type { ListWorkspaceId } from "../app/state";
+import { isRowSyncable } from "../workflows/form-leads/payloads";
 import {
-  isRowSyncable,
-  rowToSyncCandidate,
-} from "../workflows/form-leads/payloads";
+  applyBookedCallLeadRows,
+  applyCallLeadEnrichmentRows,
+} from "../workflows/call-leads/apply";
 import { previewFormLeadRows } from "../workflows/form-leads/preview";
 import { syncLeadCandidates } from "../workflows/form-leads/sync";
 import type {
@@ -246,14 +245,11 @@ async function runFormLeadsCycle(
     };
   }
 
-  const candidates = syncableRows.map((row) =>
-    rowToSyncCandidate(row, previews.get(row.id)),
-  );
-  const agents = await loadAgentsForReceiverMatching();
   const resultsById = new Map<string, RowSyncResult>();
   const counts = await syncLeadCandidates(
-    candidates,
-    { getFormLeadById, updateFormLead, agents },
+    syncableRows,
+    previews,
+    { applyFormLead: applyGranotFormLead },
     (id, result) => {
       resultsById.set(id, result);
     },
@@ -386,9 +382,9 @@ async function runCallLeadsCycle(
     const syncable = outcome.enrichmentRows.filter(canSyncCallEnrichmentRow);
     syncableTotal += syncable.length;
     if (syncable.length > 0) {
-      const results = await syncCallLeadEnrichment(
-        syncable.map((row) => row.payload),
-      );
+      const results = await applyCallLeadEnrichmentRows(syncable, {
+        applyItems: applyCallLeadEnrichment,
+      });
       const merged = mergeEnrichmentResults(outcome.enrichmentRows, results);
       const counts = countEnrichmentResults(results);
       updated += counts.updated;
@@ -408,9 +404,9 @@ async function runCallLeadsCycle(
     );
     syncableTotal += syncable.length;
     if (syncable.length > 0) {
-      const results = await syncBookedCallLeadReconciliation(
-        syncable.map((row) => row.payload),
-      );
+      const results = await applyBookedCallLeadRows(syncable, {
+        applyItems: applyBookedCallLeadReconciliation,
+      });
       const merged = mergeBookedReconciliationResults(
         outcome.bookedReconciliationRows,
         results,

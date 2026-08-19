@@ -1,37 +1,31 @@
-// Form Leads sync workflow. Loops a list of sync candidates, decides whether to
-// send a real diff (`PATCH` of changed fields) or an idempotent re-sync, and
-// reports each row result back through `onResult`. Returns aggregate counts.
-// API access is injected so the same logic can run from the popup or a future
-// background runner.
-import type { Agent } from "../../api/agents";
-import type {
-  FormLeadLookup,
-  FormLeadUpdatePayload,
-  GranotFormLeadExpectedSnapshot,
-} from "../../utils/api";
-import { matchAgentByCrmUsername } from "../agents/match";
+import type { ExtensionGranotApplyItem, ExtensionGranotApplyResult } from "../../lifecycle/types";
+import { applyQueuedItems, type QueueApplyInput } from "../../lifecycle/apply";
+import { mapApplyResultToUiStatus } from "../../lifecycle/messages";
 import {
-  buildFormLeadSyncPayload,
-  buildFormLeadUpdatePayload,
-  buildUnchangedMessage,
-  buildUpdatedMessage,
-  isDuplicateQuarantineLead,
-} from "./payloads";
-import type { LeadSyncCandidate, RowSyncResult, SyncCounts } from "./types";
+  buildFormLeadStatement,
+  formLeadOperationKind,
+  statementHasQuoted,
+} from "../../lifecycle/statement";
+import type { PendingOperationStore } from "../../lifecycle/ledger";
+import { isRowSyncable } from "./payloads";
+import type {
+  FollowUpRow,
+  FormLeadRowPreview,
+  RowSyncResult,
+  SyncCounts,
+} from "./types";
 
 export type FormLeadSyncContext = {
-  getFormLeadById: (id: string) => Promise<FormLeadLookup>;
-  updateFormLead: (
+  applyFormLead: (
     id: string,
-    payload: FormLeadUpdatePayload,
-    expectedSourceCompany: string,
-    expectedSnapshot: GranotFormLeadExpectedSnapshot,
-  ) => Promise<FormLeadLookup>;
-  agents?: Agent[];
+    item: ExtensionGranotApplyItem,
+  ) => Promise<ExtensionGranotApplyResult>;
+  store?: PendingOperationStore;
 };
 
 export async function syncLeadCandidates(
-  candidates: LeadSyncCandidate[],
+  rows: FollowUpRow[],
+  previews: ReadonlyMap<string, FormLeadRowPreview>,
   context: FormLeadSyncContext,
   onResult: (id: string, result: RowSyncResult) => void,
 ): Promise<SyncCounts> {
@@ -39,104 +33,59 @@ export async function syncLeadCandidates(
   let unchanged = 0;
   let failed = 0;
 
-  for (const candidate of candidates) {
-    // Use the resolved Vantage `_id` for fallback matches; falls back to the
-    // Granot `refNo` for direct id matches. Never PATCH the Granot refNo string
-    // once a fallback match has resolved a different Vantage id.
-    const targetId = candidate.vantageId ?? candidate.refNo;
+  for (const row of rows) {
+    const preview = previews.get(row.id);
+    if (!isRowSyncable(row, preview)) {
+      onResult(row.id, {
+        status: "skipped",
+        message: "Row is not selected for apply.",
+      });
+      continue;
+    }
+    const targetId = preview?.resolvedVantageId ?? preview?.current?._id;
+    if (!targetId) {
+      failed += 1;
+      onResult(row.id, {
+        status: "failed",
+        message: "Preview did not resolve a Vantage form lead.",
+      });
+      continue;
+    }
+
+    const statement = buildFormLeadStatement(row);
+    if (statementHasQuoted(statement)) {
+      failed += 1;
+      onResult(row.id, {
+        status: "failed",
+        message: "Final apply cannot send a quoted patch.",
+      });
+      continue;
+    }
 
     try {
-      if (!candidate.expectedSourceCompany) {
-        throw new Error(
-          "Authoritative preview did not provide source_company; rescan before syncing.",
-        );
-      }
-      const current = await context.getFormLeadById(targetId);
-      if (isDuplicateQuarantineLead(current)) {
-        onResult(candidate.id, {
-          status: "skipped",
-          message:
-            "Skipped duplicate quarantined form lead — sync only applies to the canonical lead.",
-        });
-        continue;
-      }
-      if (
-        candidate.expectedSourceCompany &&
-        current.source_company !== candidate.expectedSourceCompany
-      ) {
-        failed += 1;
-        onResult(candidate.id, {
-          status: "failed",
-          message:
-            "Form lead source_company changed after preview; rescan before syncing.",
-        });
-        continue;
-      }
-
-      const fieldUpdates = buildFormLeadUpdatePayload(candidate, current);
-      const receiverMatch = buildReceiverAgentUpdate(
-        candidate,
-        current,
-        context.agents,
-      );
-      const changedPayload: FormLeadUpdatePayload = {
-        ...fieldUpdates,
-        ...(receiverMatch.payload ?? {}),
+      const queue: QueueApplyInput = {
+        row_id: row.id,
+        operation_kind: formLeadOperationKind(row),
+        granot_statement: statement,
+        expected_target: { model: "FormLead", id: targetId },
       };
-      const hasChanges = Object.keys(changedPayload).length > 0;
-      const hasLeadFieldSyncTarget = typeof candidate.quoted === "boolean";
-
-      if (!hasChanges && !hasLeadFieldSyncTarget) {
-        onResult(candidate.id, {
-          status: "skipped",
-          message: appendReceiverMessage(
-            "Missing quoted target",
-            receiverMatch.message,
-          ),
-        });
-        continue;
-      }
-
-      const syncPayload: FormLeadUpdatePayload = {
-        ...(hasLeadFieldSyncTarget ? buildFormLeadSyncPayload(candidate) : {}),
-        ...fieldUpdates,
-        ...(receiverMatch.payload ?? {}),
-      };
-      const updatedLead = await context.updateFormLead(
-        targetId,
-        syncPayload,
-        candidate.expectedSourceCompany,
-        buildExpectedSnapshot(current),
-      );
-      const updatedCurrent = reflectReceiverAgentUpdate(
-        updatedLead,
-        receiverMatch,
-      );
-
-      if (!hasChanges) {
-        unchanged += 1;
-        onResult(candidate.id, {
-          status: "unchanged",
-          message: appendReceiverMessage(
-            `${buildUnchangedMessage(candidate)}; sync request sent anyway.`,
-            receiverMatch.message,
-          ),
-          current: updatedCurrent,
-        });
-      } else {
-        updated += 1;
-        onResult(candidate.id, {
-          status: "updated",
-          message: appendReceiverMessage(
-            buildUpdatedMessage(changedPayload, current),
-            receiverMatch.message,
-          ),
-          current: updatedCurrent,
-        });
-      }
+      const [result] = await applyQueuedItems({
+        queues: [queue],
+        store: context.store,
+        send: async (items) => [await context.applyFormLead(targetId, items[0])],
+      });
+      const status = mapApplyResultToUiStatus(result);
+      if (status === "updated") updated += 1;
+      else if (status === "unchanged" || status === "skipped") unchanged += 1;
+      else failed += 1;
+      onResult(row.id, {
+        status,
+        message: result.message,
+        current: preview?.current,
+      });
     } catch (err) {
       failed += 1;
-      onResult(candidate.id, {
+      onResult(row.id, {
         status: "failed",
         message: err instanceof Error ? err.message : String(err),
       });
@@ -144,81 +93,4 @@ export async function syncLeadCandidates(
   }
 
   return { updated, unchanged, failed };
-}
-
-function buildExpectedSnapshot(
-  current: FormLeadLookup,
-): GranotFormLeadExpectedSnapshot {
-  return {
-    quoted: current.quoted ?? null,
-    cubic_feet: current.cubic_feet ?? null,
-    pickup_city: current.pickup_city ?? null,
-    pickup_zip: current.pickup_zip ?? null,
-    pickup_state: current.pickup_state ?? null,
-    delivery_city: current.delivery_city ?? null,
-    destination_zip: current.destination_zip ?? null,
-    delivery_state: current.delivery_state ?? null,
-    receiver_agent: current.receiver_agent ?? null,
-  };
-}
-
-function buildReceiverAgentUpdate(
-  candidate: LeadSyncCandidate,
-  current: FormLeadLookup,
-  agents: Agent[] | undefined,
-): {
-  payload?: FormLeadUpdatePayload;
-  message?: string;
-  agentName?: string;
-  crmUsername?: string;
-} {
-  const match = matchAgentByCrmUsername(candidate.salesRepRaw, agents ?? []);
-  if (!match.username) {
-    return {};
-  }
-
-  if (current.receiver_agent) {
-    return {
-      message: `Receiver Agent already set; CRM username ${match.username} did not overwrite it.`,
-    };
-  }
-
-  if (match.status === "none") {
-    return {
-      message: `No Agent matched CRM username ${match.username}.`,
-      crmUsername: match.username,
-    };
-  }
-
-  const activeLabel = match.candidate.active ? "active" : "inactive";
-  return {
-    payload: {
-      receiver_agent: match.candidate._id,
-      receiver_agent_source: "extension_crm_username_match",
-      receiver_agent_source_value: match.username,
-    },
-    message: `Matched ${activeLabel} Agent "${match.candidate.name}" by CRM username ${match.username}.`,
-    agentName: match.candidate.name,
-    crmUsername: match.username,
-  };
-}
-
-function appendReceiverMessage(message: string, receiverMessage: string | undefined): string {
-  return receiverMessage ? `${message} ${receiverMessage}` : message;
-}
-
-function reflectReceiverAgentUpdate(
-  lead: FormLeadLookup,
-  receiverMatch: { agentName?: string; crmUsername?: string },
-): FormLeadLookup {
-  if (!receiverMatch.agentName) {
-    return lead;
-  }
-  return {
-    ...lead,
-    receiver_agent_name_snapshot:
-      lead.receiver_agent_name_snapshot ?? receiverMatch.agentName,
-    receiver_agent_source_value:
-      lead.receiver_agent_source_value ?? receiverMatch.crmUsername,
-  };
 }

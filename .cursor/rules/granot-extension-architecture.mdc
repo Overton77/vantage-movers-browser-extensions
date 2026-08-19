@@ -15,6 +15,7 @@ alwaysApply: false
 - `src/entrypoints/popup/{app,ui,workspaces}` owns popup state wiring, rendering, DOM helpers, events, routing, and workspace actions.
 - `src/parsers/granot/*` are the DOM and CSV parsers. Keep Granot-specific page knowledge there.
 - `src/api/*` is the Vantage HTTP boundary. `src/utils/api.ts` only re-exports the barrel for legacy imports.
+- `src/lifecycle/*` owns UUID v4 operation IDs, the PII-free pending ledger (`browser.storage.local` key `granot-sync:pending-granot-operations-v1`; WXT aliases `chrome.storage.local`), raw statement builders, and the shared foreground/background apply adapter. Persist the pending record before `vantageFetch` so auth refresh reuses the same ID. Package / WXT generated manifest version is `0.2.8`. `.output` is not version authority.
 - `src/auth/*` owns extension login, refresh, token storage, and role gating. Store auth under `granot-sync:auth-session-v1`.
 - `src/messaging/tabs.ts` is the shared tab/frame transport used by the popup and background runner.
 - `src/app/state.ts` defines shared state types only; runtime state is created in `src/entrypoints/popup/app/state.ts`.

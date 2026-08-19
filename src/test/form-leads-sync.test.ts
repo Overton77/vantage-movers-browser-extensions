@@ -1,303 +1,200 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { Agent } from "../utils/api";
-import type { FormLeadLookup, FormLeadUpdatePayload } from "../utils/api";
+import type { ExtensionGranotApplyItem, ExtensionGranotApplyResult } from "../lifecycle/types";
+import { createMemoryPendingStore } from "../lifecycle/ledger";
 import { syncLeadCandidates } from "../workflows/form-leads/sync";
 import type {
-  LeadSyncCandidate,
+  FollowUpRow,
+  FormLeadRowPreview,
   RowSyncResult,
 } from "../workflows/form-leads/types";
 
-function makeCandidate(
-  overrides: Partial<LeadSyncCandidate> = {},
-): LeadSyncCandidate {
+function makeRow(overrides: Partial<FollowUpRow> = {}): FollowUpRow {
   return {
     id: "row-1",
-    refNo: "ref-1",
+    rowIndex: 1,
+    tableSource: "followUpEstimates",
+    refNo: "G-100",
     prior: "1",
     quoted: true,
     cubicFeet: 300,
+    customer: "Pat Example",
+    phone: "5551112222",
+    email: "pat@example.test",
+    userRaw: "MIKEM",
+    repRaw: "SALES1",
+    salesRepRaw: "MIKEM",
     status: "syncable",
-    expectedSourceCompany: "top10_leads",
     ...overrides,
   };
 }
 
-function makeLookup(overrides: Partial<FormLeadLookup> = {}): FormLeadLookup {
+function makePreview(
+  overrides: Partial<FormLeadRowPreview> = {},
+): FormLeadRowPreview {
   return {
-    _id: "ref-1",
-    ref_no: "ref-1",
-    source_company: "top10_leads",
-    quoted: true,
-    cubic_feet: 300,
-    booked: null,
+    state: "will_update",
+    matchMethod: "ref_no_exact",
+    resolvedVantageId: "lead-1",
+    current: { _id: "lead-1", ref_no: "G-100" },
+    changes: ["priority"],
+    message: "will update",
     ...overrides,
   };
 }
 
-function makeAgent(overrides: Partial<Agent> = {}): Agent {
+function makeApplyResult(
+  overrides: Partial<ExtensionGranotApplyResult> = {},
+): ExtensionGranotApplyResult {
   return {
-    id: "agent-1",
-    _id: "agent-1",
-    name: "Mike M",
-    normalized_name: "mike m",
-    active: true,
-    created_from: "admin",
-    granot_crm_username: "MIKEM",
+    operation_id: "11111111-1111-4111-8111-111111111111",
+    receipt_id: "receipt-1",
+    processing_state: "completed",
+    outcome: "applied",
+    changed_paths: [],
+    message: "Applied.",
     ...overrides,
   };
 }
 
 describe("syncLeadCandidates", () => {
-  it("PATCHes only the changed fields and reports updated", async () => {
-    const updateFormLead = vi.fn(async () => makeLookup());
+  it("[AC-34] sends a receipt apply item with raw Priority, separate user/rep, and no quoted patch", async () => {
+    const applyFormLead = vi.fn(async (_id: string, item: ExtensionGranotApplyItem) =>
+      makeApplyResult({ operation_id: item.operation_id }),
+    );
     const results: Record<string, RowSyncResult> = {};
+    const store = createMemoryPendingStore();
 
     const counts = await syncLeadCandidates(
-      [makeCandidate({ quoted: true, cubicFeet: 400 })],
-      {
-        getFormLeadById: async () =>
-          makeLookup({ quoted: false, cubic_feet: 300 }),
-        updateFormLead,
-      },
+      [makeRow()],
+      new Map([["row-1", makePreview()]]),
+      { applyFormLead, store },
       (id, result) => {
         results[id] = result;
       },
     );
 
-    expect(updateFormLead).toHaveBeenCalledWith("ref-1", {
-      quoted: true,
-      cubic_feet: 400,
-    } satisfies FormLeadUpdatePayload, "top10_leads", expect.any(Object));
+    expect(applyFormLead).toHaveBeenCalledOnce();
+    const [id, item] = applyFormLead.mock.calls[0];
+    expect(id).toBe("lead-1");
+    expect(item.operation_kind).toBe("lead_snapshot_apply");
+    expect(item.expected_target).toEqual({ model: "FormLead", id: "lead-1" });
+    expect(item.granot_statement).toMatchObject({
+      ref_no: "G-100",
+      priority: "1",
+      user: "MIKEM",
+      rep: "SALES1",
+      customer: "Pat Example",
+    });
+    expect(item.granot_statement).not.toHaveProperty("quoted");
+    expect(item.granot_statement).not.toHaveProperty("cubic_feet");
+    expect(item.granot_statement).not.toHaveProperty("receiver_agent");
     expect(results["row-1"].status).toBe("updated");
     expect(counts).toEqual({ updated: 1, unchanged: 0, failed: 0 });
   });
 
-  it("sends an idempotent payload when nothing changed and reports unchanged", async () => {
-    const updateFormLead = vi.fn(async () => makeLookup());
-    const results: Record<string, RowSyncResult> = {};
-
-    const counts = await syncLeadCandidates(
-      [makeCandidate({ quoted: true, cubicFeet: 300 })],
-      {
-        getFormLeadById: async () =>
-          makeLookup({ quoted: true, cubic_feet: 300 }),
-        updateFormLead,
-      },
-      (id, result) => {
-        results[id] = result;
-      },
+  it("sends booking_action_apply with raw Booked evidence for Booked Jobs rows", async () => {
+    const applyFormLead = vi.fn(async (_id: string, item: ExtensionGranotApplyItem) =>
+      makeApplyResult({
+        operation_id: item.operation_id,
+        outcome: "already_current",
+        message: "Already current.",
+      }),
     );
 
-    expect(updateFormLead).toHaveBeenCalledWith("ref-1", {
-      quoted: true,
-      cubic_feet: 300,
-    }, "top10_leads", expect.any(Object));
-    expect(results["row-1"].status).toBe("unchanged");
-    expect(counts).toEqual({ updated: 0, unchanged: 1, failed: 0 });
-  });
-
-  it("adds receiver_agent when CRM username matches and the lead has no receiver", async () => {
-    const updateFormLead = vi.fn(async () => makeLookup());
-    const results: Record<string, RowSyncResult> = {};
-
-    const counts = await syncLeadCandidates(
-      [makeCandidate({ salesRepRaw: " mikem " })],
-      {
-        getFormLeadById: async () =>
-          makeLookup({ quoted: true, cubic_feet: 300, receiver_agent: null }),
-        updateFormLead,
-        agents: [makeAgent({ active: false })],
-      },
-      (id, result) => {
-        results[id] = result;
-      },
+    await syncLeadCandidates(
+      [makeRow({ tableSource: "bookedJobs" })],
+      new Map([["row-1", makePreview()]]),
+      { applyFormLead, store: createMemoryPendingStore() },
+      () => undefined,
     );
 
-    expect(updateFormLead).toHaveBeenCalledWith("ref-1", {
-      quoted: true,
-      cubic_feet: 300,
-      receiver_agent: "agent-1",
-      receiver_agent_source: "extension_crm_username_match",
-      receiver_agent_source_value: "MIKEM",
-    } satisfies FormLeadUpdatePayload, "top10_leads", expect.any(Object));
-    expect(results["row-1"].status).toBe("updated");
-    expect(results["row-1"].message).toContain("inactive Agent");
-    expect(results["row-1"].current?.receiver_agent_name_snapshot).toBe("Mike M");
-    expect(results["row-1"].current?.receiver_agent_source_value).toBe("MIKEM");
-    expect(counts).toEqual({ updated: 1, unchanged: 0, failed: 0 });
+    const item = applyFormLead.mock.calls[0][1];
+    expect(item.operation_kind).toBe("booking_action_apply");
+    expect(item.granot_statement.event_type).toBe("Booked");
+    expect(item.granot_statement.priority).toBe("1");
+    expect(item.granot_statement).not.toHaveProperty("quoted");
   });
 
-  it("adds receiver_agent without quote/cubic writes for receiver-only candidates", async () => {
-    const updateFormLead = vi.fn(async () =>
-      makeLookup({
-        receiver_agent: "agent-1",
-        receiver_agent_name_snapshot: "Mike M",
-        receiver_agent_source_value: "MIKEM",
+  it("maps already_current to unchanged and accepted_for_processing to pending reuse", async () => {
+    const applyFormLead = vi.fn(async (_id: string, item: ExtensionGranotApplyItem) =>
+      makeApplyResult({
+        operation_id: item.operation_id,
+        processing_state: "accepted_for_processing",
+        message: "Accepted for processing.",
       }),
     );
     const results: Record<string, RowSyncResult> = {};
 
     const counts = await syncLeadCandidates(
-      [
-        makeCandidate({
-          prior: "2",
-          quoted: undefined,
-          cubicFeet: undefined,
-          status: "unsupported_prior",
-          salesRepRaw: "MIKEM",
-        }),
-      ],
-      {
-        getFormLeadById: async () =>
-          makeLookup({ quoted: true, cubic_feet: 300, receiver_agent: null }),
-        updateFormLead,
-        agents: [makeAgent()],
-      },
+      [makeRow()],
+      new Map([["row-1", makePreview()]]),
+      { applyFormLead, store: createMemoryPendingStore() },
       (id, result) => {
         results[id] = result;
       },
     );
 
-    expect(updateFormLead).toHaveBeenCalledWith("ref-1", {
-      receiver_agent: "agent-1",
-      receiver_agent_source: "extension_crm_username_match",
-      receiver_agent_source_value: "MIKEM",
-    } satisfies FormLeadUpdatePayload, "top10_leads", expect.any(Object));
-    expect(results["row-1"].status).toBe("updated");
-    expect(results["row-1"].message).toContain("Matched active Agent");
-    expect(counts).toEqual({ updated: 1, unchanged: 0, failed: 0 });
-  });
-
-  it("skips receiver-only candidates when no Agent matches the CRM username", async () => {
-    const updateFormLead = vi.fn(async () => makeLookup());
-    const results: Record<string, RowSyncResult> = {};
-
-    const counts = await syncLeadCandidates(
-      [
-        makeCandidate({
-          prior: "2",
-          quoted: undefined,
-          cubicFeet: undefined,
-          status: "unsupported_prior",
-          salesRepRaw: "UNKNOWN",
-        }),
-      ],
-      {
-        getFormLeadById: async () => makeLookup({ receiver_agent: null }),
-        updateFormLead,
-        agents: [makeAgent()],
-      },
-      (id, result) => {
-        results[id] = result;
-      },
-    );
-
-    expect(updateFormLead).not.toHaveBeenCalled();
     expect(results["row-1"].status).toBe("skipped");
-    expect(results["row-1"].message).toContain("No Agent matched CRM username UNKNOWN");
-    expect(counts).toEqual({ updated: 0, unchanged: 0, failed: 0 });
+    expect(counts).toEqual({ updated: 0, unchanged: 1, failed: 0 });
   });
 
-  it("does not overwrite an existing receiver_agent during CRM username matching", async () => {
-    const updateFormLead = vi.fn(async () => makeLookup());
-    const results: Record<string, RowSyncResult> = {};
-
-    await syncLeadCandidates(
-      [makeCandidate({ salesRepRaw: "MIKEM" })],
-      {
-        getFormLeadById: async () =>
-          makeLookup({ receiver_agent: "existing-agent" }),
-        updateFormLead,
-        agents: [makeAgent()],
-      },
-      (id, result) => {
-        results[id] = result;
-      },
-    );
-
-    expect(updateFormLead).toHaveBeenCalledWith("ref-1", {
-      quoted: true,
-      cubic_feet: 300,
-    }, "top10_leads", expect.any(Object));
-    expect(results["row-1"].message).toContain("did not overwrite");
-  });
-
-  it("skips a candidate with no quoted target and no receiver update", async () => {
-    const updateFormLead = vi.fn(async () => makeLookup());
-    const getFormLeadById = vi.fn(async () => makeLookup());
+  it("skips rows that are not selected for apply", async () => {
+    const applyFormLead = vi.fn();
     const results: Record<string, RowSyncResult> = {};
 
     const counts = await syncLeadCandidates(
-      [makeCandidate({ quoted: undefined })],
-      { getFormLeadById, updateFormLead },
+      [makeRow({ status: "invalid_ref_no", quoted: undefined })],
+      new Map(),
+      { applyFormLead },
       (id, result) => {
         results[id] = result;
       },
     );
 
-    expect(getFormLeadById).toHaveBeenCalledWith("ref-1");
-    expect(updateFormLead).not.toHaveBeenCalled();
+    expect(applyFormLead).not.toHaveBeenCalled();
     expect(results["row-1"].status).toBe("skipped");
     expect(counts).toEqual({ updated: 0, unchanged: 0, failed: 0 });
   });
 
-  it("skips duplicate quarantine leads without PATCHing", async () => {
-    const updateFormLead = vi.fn(async () => makeLookup());
+  it("fails closed when preview did not resolve a Vantage form lead", async () => {
+    const applyFormLead = vi.fn();
     const results: Record<string, RowSyncResult> = {};
 
     const counts = await syncLeadCandidates(
-      [makeCandidate()],
-      {
-        getFormLeadById: async () => makeLookup({ duplicate: true }),
-        updateFormLead,
-      },
+      [makeRow()],
+      new Map([
+        [
+          "row-1",
+          makePreview({
+            state: "will_update",
+            resolvedVantageId: undefined,
+            current: undefined,
+            matchMethod: "ref_no_exact",
+          }),
+        ],
+      ]),
+      { applyFormLead },
       (id, result) => {
         results[id] = result;
       },
     );
 
-    expect(updateFormLead).not.toHaveBeenCalled();
+    expect(applyFormLead).not.toHaveBeenCalled();
     expect(results["row-1"].status).toBe("skipped");
-    expect(results["row-1"].message).toContain("duplicate");
-    expect(counts).toEqual({ updated: 0, unchanged: 0, failed: 0 });
-  });
-
-  it("fails closed when source_company changed after preview", async () => {
-    const updateFormLead = vi.fn(async () => makeLookup());
-    const results: Record<string, RowSyncResult> = {};
-    const counts = await syncLeadCandidates(
-      [
-        makeCandidate({
-          expectedSourceCompany: "top10_leads",
-        }),
-      ],
-      {
-        getFormLeadById: async () =>
-          makeLookup({ source_company: "tbm_leads" }),
-        updateFormLead,
-      },
-      (id, result) => {
-        results[id] = result;
-      },
-    );
-
-    expect(updateFormLead).not.toHaveBeenCalled();
-    expect(results["row-1"].status).toBe("failed");
-    expect(results["row-1"].message).toContain("changed after preview");
-    expect(counts).toEqual({ updated: 0, unchanged: 0, failed: 1 });
+    expect(counts.failed).toBe(0);
   });
 
   it("counts an API failure as failed", async () => {
     const results: Record<string, RowSyncResult> = {};
-
     const counts = await syncLeadCandidates(
-      [makeCandidate()],
+      [makeRow()],
+      new Map([["row-1", makePreview()]]),
       {
-        getFormLeadById: async () => {
+        applyFormLead: async () => {
           throw new Error("boom");
         },
-        updateFormLead: async () => makeLookup(),
+        store: createMemoryPendingStore(),
       },
       (id, result) => {
         results[id] = result;

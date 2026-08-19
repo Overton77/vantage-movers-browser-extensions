@@ -166,23 +166,16 @@ export async function updateFormLead(
   return envelope.data;
 }
 
-export async function syncGranotFormLead(
+export async function applyGranotFormLead(
   id: string,
-  patch: FormLeadUpdatePayload,
-  expectedSourceCompany: string,
-  expectedSnapshot: GranotFormLeadExpectedSnapshot,
-): Promise<FormLeadLookup> {
-  const envelope = await vantageFetch<FormLeadLookup>(
-    `/api/v1/form-leads/${encodeURIComponent(id)}/granot-sync`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        patch,
-        expected_source_company: expectedSourceCompany,
-        expected_snapshot: expectedSnapshot,
-      }),
-    },
-  );
+  item: import("../lifecycle/types").ExtensionGranotApplyItem,
+): Promise<import("../lifecycle/types").ExtensionGranotApplyResult> {
+  const envelope = await vantageFetch<
+    import("../lifecycle/types").ExtensionGranotApplyResult
+  >(`/api/v1/form-leads/${encodeURIComponent(id)}/granot-sync`, {
+    method: "PATCH",
+    body: JSON.stringify(item),
+  });
   return envelope.data;
 }
 

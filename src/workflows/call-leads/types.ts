@@ -31,10 +31,12 @@ export type CallLeadPreviewResponse = {
 
 export type CallLeadEnrichmentPreview = {
   payload: CallLeadEnrichmentRowPayload;
+  sourceRow?: CallLeadPreviewRow;
   result?: CallLeadEnrichmentResult;
 };
 
 export type BookedCallLeadReconciliationPreview = {
   payload: BookedCallLeadReconciliationRowPayload;
+  sourceRow?: CallLeadPreviewRow;
   result?: BookedCallLeadReconciliationResult;
 };

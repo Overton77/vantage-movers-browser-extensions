@@ -178,17 +178,11 @@ async function runAutoScanAndSync(
 
     const enrichmentResults =
       syncableEnrichmentRows.length > 0
-        ? await syncCallRows(
-            app,
-            syncableEnrichmentRows.map((row) => row.payload),
-          )
+        ? await syncCallRows(app, syncableEnrichmentRows)
         : undefined;
     const bookedResults =
       syncableBookedRows.length > 0
-        ? await syncBookedCallRows(
-            app,
-            syncableBookedRows.map((row) => row.payload),
-          )
+        ? await syncBookedCallRows(app, syncableBookedRows)
         : undefined;
 
     const latestEnrichmentRows = app.state.callLeads.enrichmentRows;

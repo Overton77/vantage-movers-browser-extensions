@@ -18,6 +18,7 @@ import type {
   BookedCallLeadReconciliationPreview,
   CallLeadEnrichmentPreview,
   CallLeadPreviewResponse,
+  CallLeadPreviewRow,
 } from "./types";
 
 export type CallLeadPreviewContext = {
@@ -50,8 +51,14 @@ export async function previewCallLeads(
   const bookedPayloads = callLeadRowsToBookedReconciliationPayloads(response);
 
   const outcome: CallLeadPreviewOutcome = {
-    enrichmentRows: enrichmentPayloads.map((payload) => ({ payload })),
-    bookedReconciliationRows: bookedPayloads.map((payload) => ({ payload })),
+    enrichmentRows: enrichmentPayloads.map((payload) => ({
+      payload,
+      sourceRow: findSourceRow(response, "followUpEstimates", payload.row_id),
+    })),
+    bookedReconciliationRows: bookedPayloads.map((payload) => ({
+      payload,
+      sourceRow: findSourceRow(response, "bookedJobs", payload.row_id),
+    })),
   };
 
   if (enrichmentPayloads.length > 0) {
@@ -59,6 +66,7 @@ export async function previewCallLeads(
       const results = await context.previewEnrichment(enrichmentPayloads);
       outcome.enrichmentRows = enrichmentPayloads.map((payload) => ({
         payload,
+        sourceRow: findSourceRow(response, "followUpEstimates", payload.row_id),
         result: results.find((result) => result.row_id === payload.row_id),
       }));
       outcome.selectedRowIds = outcome.enrichmentRows
@@ -76,6 +84,7 @@ export async function previewCallLeads(
         await context.previewBookedReconciliation(bookedPayloads);
       outcome.bookedReconciliationRows = bookedPayloads.map((payload) => ({
         payload,
+        sourceRow: findSourceRow(response, "bookedJobs", payload.row_id),
         result: results.find((result) => result.row_id === payload.row_id),
       }));
     } catch (err) {
@@ -84,4 +93,14 @@ export async function previewCallLeads(
   }
 
   return outcome;
+}
+
+function findSourceRow(
+  response: CallLeadPreviewResponse,
+  sectionKey: "bookedJobs" | "followUpEstimates",
+  rowId: string,
+): CallLeadPreviewRow | undefined {
+  return response.sections
+    .find((section) => section.key === sectionKey)
+    ?.rows.find((row) => row.id === rowId);
 }

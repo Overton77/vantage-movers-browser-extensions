@@ -130,17 +130,15 @@ export async function previewCallLeadEnrichment(
   return envelope.data;
 }
 
-export async function syncCallLeadEnrichment(
-  rows: CallLeadEnrichmentRowPayload[],
-): Promise<CallLeadEnrichmentResult[]> {
-  const envelope = await vantageFetch<CallLeadEnrichmentResult[]>(
-    `/api/v1/call-leads/enrichment/sync`,
-    {
-      method: "POST",
-      body: JSON.stringify({ rows }),
-    },
-  );
-
+export async function applyCallLeadEnrichment(
+  items: import("../lifecycle/types").ExtensionGranotApplyItem[],
+): Promise<import("../lifecycle/types").ExtensionGranotApplyResult[]> {
+  const envelope = await vantageFetch<
+    import("../lifecycle/types").ExtensionGranotApplyResult[]
+  >(`/api/v1/call-leads/enrichment/sync`, {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
   return envelope.data;
 }
 
@@ -158,16 +156,14 @@ export async function previewBookedCallLeadReconciliation(
   return envelope.data;
 }
 
-export async function syncBookedCallLeadReconciliation(
-  rows: BookedCallLeadReconciliationRowPayload[],
-): Promise<BookedCallLeadReconciliationResult[]> {
-  const envelope = await vantageFetch<BookedCallLeadReconciliationResult[]>(
-    `/api/v1/call-leads/booked-reconciliation/sync`,
-    {
-      method: "POST",
-      body: JSON.stringify({ rows }),
-    },
-  );
-
+export async function applyBookedCallLeadReconciliation(
+  items: import("../lifecycle/types").ExtensionGranotApplyItem[],
+): Promise<import("../lifecycle/types").ExtensionGranotApplyResult[]> {
+  const envelope = await vantageFetch<
+    import("../lifecycle/types").ExtensionGranotApplyResult[]
+  >(`/api/v1/call-leads/booked-reconciliation/sync`, {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
   return envelope.data;
 }

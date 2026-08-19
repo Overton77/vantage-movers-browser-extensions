@@ -192,7 +192,7 @@ function buildBookedRowElement(
     result: reconciliation?.result,
     canSync: canSyncBookedCallReconciliationRow(reconciliation),
     onSync: reconciliation
-      ? () => void syncBookedCallRows(app, [reconciliation.payload])
+      ? () => void syncBookedCallRows(app, [reconciliation])
       : undefined,
     selectable: false,
     leadId: reconciliation?.result?.call_lead_id,
@@ -214,7 +214,7 @@ function buildCallLeadRowElement(
     result: enrichment?.result,
     canSync: canSyncCallEnrichmentRow(enrichment),
     onSync: enrichment
-      ? () => void syncCallRows(app, [enrichment.payload])
+      ? () => void syncCallRows(app, [enrichment])
       : undefined,
     selectable: true,
     leadId: enrichment?.result?.call_lead_id,

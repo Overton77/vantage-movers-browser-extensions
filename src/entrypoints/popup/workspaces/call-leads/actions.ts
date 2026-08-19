@@ -4,13 +4,15 @@
 // these actions only own popup status/busy/state/render side effects. Extracted
 // from `popup/main.ts` in Unit 07.
 import {
+  applyBookedCallLeadReconciliation,
+  applyCallLeadEnrichment,
   previewBookedCallLeadReconciliation,
   previewCallLeadEnrichment,
-  syncBookedCallLeadReconciliation,
-  syncCallLeadEnrichment,
-  type BookedCallLeadReconciliationRowPayload,
-  type CallLeadEnrichmentRowPayload,
 } from "../../../../utils/api";
+import {
+  applyBookedCallLeadRows,
+  applyCallLeadEnrichmentRows,
+} from "../../../../workflows/call-leads/apply";
 import {
   canSyncBookedCallReconciliationRow,
   canSyncCallEnrichmentRow,
@@ -23,7 +25,11 @@ import {
   mergeEnrichmentResults,
   selectedEnrichmentRowIds,
 } from "../../../../workflows/call-leads/sync";
-import type { CallLeadPreviewResponse } from "../../../../workflows/call-leads/types";
+import type {
+  BookedCallLeadReconciliationPreview,
+  CallLeadEnrichmentPreview,
+  CallLeadPreviewResponse,
+} from "../../../../workflows/call-leads/types";
 import type { SyncCounts } from "../../../../workflows/form-leads/types";
 import { sendActiveTabMessage } from "../../../../messaging/tabs";
 import type { AppContext } from "../../app/context";
@@ -136,7 +142,7 @@ export async function scanCallLeadsPreview(
 
 export async function syncCallRows(
   app: AppContext,
-  rows: CallLeadEnrichmentRowPayload[],
+  rows: CallLeadEnrichmentPreview[],
 ): Promise<SyncCounts | undefined> {
   const { dom } = app;
   const cl = app.state.callLeads;
@@ -151,7 +157,9 @@ export async function syncCallRows(
   setStatus(dom, `Syncing ${rows.length} call lead row(s)…`);
 
   try {
-    const results = await syncCallLeadEnrichment(rows);
+    const results = await applyCallLeadEnrichmentRows(rows, {
+      applyItems: applyCallLeadEnrichment,
+    });
     cl.enrichmentRows = mergeEnrichmentResults(cl.enrichmentRows, results);
     cl.selectedRowIds = new Set(selectedEnrichmentRowIds(cl.enrichmentRows));
     const counts = countEnrichmentResults(results);
@@ -175,7 +183,7 @@ export async function syncCallRows(
 
 export async function syncBookedCallRows(
   app: AppContext,
-  rows: BookedCallLeadReconciliationRowPayload[],
+  rows: BookedCallLeadReconciliationPreview[],
 ): Promise<SyncCounts | undefined> {
   const { dom } = app;
   const cl = app.state.callLeads;
@@ -190,7 +198,9 @@ export async function syncBookedCallRows(
   setStatus(dom, `Updating ${rows.length} booked call lead row(s)…`);
 
   try {
-    const results = await syncBookedCallLeadReconciliation(rows);
+    const results = await applyBookedCallLeadRows(rows, {
+      applyItems: applyBookedCallLeadReconciliation,
+    });
     cl.bookedReconciliationRows = mergeBookedReconciliationResults(
       cl.bookedReconciliationRows,
       results,

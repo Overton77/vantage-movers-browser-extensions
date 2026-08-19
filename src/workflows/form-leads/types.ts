@@ -35,6 +35,10 @@ export type FollowUpRow = {
   toZip?: string;
   /** Raw Granot `user` column value, falling back to `rep` when `user` is blank. */
   salesRepRaw?: string;
+  /** Raw Granot `user` column; never collapsed into `rep` for final apply. */
+  userRaw?: string;
+  /** Raw Granot `rep` column; never collapsed into `user` for final apply. */
+  repRaw?: string;
   status: LeadStatus;
   reason?: string;
 };

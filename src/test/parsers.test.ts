@@ -72,6 +72,8 @@ describe("parseFormLeadRows (Booked Jobs / Follow Up Estimates)", () => {
     expect(syncableRow.toZip).toBe("45227");
     expect(providerRefRow.salesRepRaw).toBe("JACOB");
     expect(syncableRow.salesRepRaw).toBe("MIKEM");
+    expect(providerRefRow.userRaw === "JACOB" || providerRefRow.repRaw === "JACOB").toBe(true);
+    expect(syncableRow.userRaw === "MIKEM" || syncableRow.repRaw === "MIKEM").toBe(true);
   });
 
   it("validates prior independently from ref_no shape", () => {

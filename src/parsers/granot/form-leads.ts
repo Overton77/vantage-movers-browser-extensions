@@ -35,6 +35,8 @@ export type FollowUpRow = {
   toZip?: string;
   /** Raw Granot `user` column value, falling back to `rep` when `user` is blank. */
   salesRepRaw?: string;
+  userRaw?: string;
+  repRaw?: string;
   status: "syncable" | "invalid_ref_no" | "unsupported_prior" | "missing_prior";
   reason?: string;
 };
@@ -164,6 +166,8 @@ function readRowsFromTable(
       fromZip: getColumnValue(cells, header.columns.fromZip),
       to: getColumnValue(cells, header.columns.to),
       toZip: getColumnValue(cells, header.columns.toZip),
+      userRaw: getColumnValue(cells, header.columns.user),
+      repRaw: getColumnValue(cells, header.columns.rep),
       salesRepRaw:
         getColumnValue(cells, header.columns.user) ||
         getColumnValue(cells, header.columns.rep),

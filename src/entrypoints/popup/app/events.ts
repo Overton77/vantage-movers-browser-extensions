@@ -175,33 +175,33 @@ export function attachEventHandlers(app: AppContext): void {
   dom.cl.syncBooked.addEventListener("click", () => {
     void syncBookedCallRows(
       app,
-      state.callLeads.bookedReconciliationRows
-        .filter(canSyncBookedCallReconciliationRow)
-        .map((row) => row.payload),
+      state.callLeads.bookedReconciliationRows.filter(
+        canSyncBookedCallReconciliationRow,
+      ),
     );
   });
   dom.cl.syncSelected.addEventListener("click", () => {
     void syncCallRows(
       app,
-      state.callLeads.enrichmentRows
-        .filter((row) => state.callLeads.selectedRowIds.has(row.payload.row_id))
-        .map((row) => row.payload),
+      state.callLeads.enrichmentRows.filter((row) =>
+        state.callLeads.selectedRowIds.has(row.payload.row_id),
+      ),
     );
   });
   dom.cl.syncAll.addEventListener("click", () => {
     void (async () => {
-      const enrichmentPayloads = state.callLeads.enrichmentRows
-        .filter(canSyncCallEnrichmentRow)
-        .map((row) => row.payload);
-      const bookedPayloads = state.callLeads.bookedReconciliationRows
-        .filter(canSyncBookedCallReconciliationRow)
-        .map((row) => row.payload);
+      const enrichmentRows = state.callLeads.enrichmentRows.filter(
+        canSyncCallEnrichmentRow,
+      );
+      const bookedRows = state.callLeads.bookedReconciliationRows.filter(
+        canSyncBookedCallReconciliationRow,
+      );
 
-      if (enrichmentPayloads.length > 0) {
-        await syncCallRows(app, enrichmentPayloads);
+      if (enrichmentRows.length > 0) {
+        await syncCallRows(app, enrichmentRows);
       }
-      if (bookedPayloads.length > 0) {
-        await syncBookedCallRows(app, bookedPayloads);
+      if (bookedRows.length > 0) {
+        await syncBookedCallRows(app, bookedRows);
       }
     })();
   });

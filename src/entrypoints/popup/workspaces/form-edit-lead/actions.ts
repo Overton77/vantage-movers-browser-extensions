@@ -3,11 +3,8 @@
 // value (honoring the override radios). Extracted from `popup/main.ts` in
 // Unit 07. Reuses the shared Form Leads sync orchestration.
 import { getFormLeadById, updateFormLead } from "../../../../utils/api";
-import { syncLeadCandidates as runSyncLeadCandidates } from "../../../../workflows/form-leads/sync";
-import type {
-  CurrentFormLeadParseResponse,
-  LeadSyncCandidate,
-} from "../../../../workflows/form-leads/types";
+import { isDuplicateQuarantineLead } from "../../../../workflows/form-leads/payloads";
+import type { CurrentFormLeadParseResponse } from "../../../../workflows/form-leads/types";
 import { sendActiveTabMessage } from "../../../../messaging/tabs";
 import type { AppContext } from "../../app/context";
 import { setBusy } from "../../app/render";
@@ -123,26 +120,43 @@ export async function syncCurrentLead(app: AppContext): Promise<void> {
 
   setBusy(app, true);
   setStatus(dom, "Syncing current lead…");
-  const candidate = {
-    ...fe.preview.lead,
-    quoted: targetQuoted,
-    status: "syncable",
-  } satisfies LeadSyncCandidate;
+  const targetId = fe.preview.lead.refNo;
 
-  const results = await runSyncLeadCandidates(
-    [candidate],
-    { getFormLeadById, updateFormLead },
-    (id, result) => {
-      if (id === candidate.id) {
-        fe.result = result;
-        renderFormEditLead(app);
-      }
-    },
-  );
+  try {
+    const current = await getFormLeadById(targetId);
+    if (isDuplicateQuarantineLead(current)) {
+      fe.result = {
+        status: "skipped",
+        message:
+          "Skipped duplicate quarantined form lead — sync only applies to the canonical lead.",
+      };
+    } else if (current.quoted === targetQuoted) {
+      fe.result = {
+        status: "unchanged",
+        message: "Quoted already matches; no form-lead patch sent.",
+        current,
+      };
+    } else {
+      const updated = await updateFormLead(targetId, { quoted: targetQuoted });
+      fe.result = {
+        status: "updated",
+        message: "Quoted updated on the form lead.",
+        current: updated,
+      };
+    }
+  } catch (err) {
+    fe.result = {
+      status: "failed",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
 
+  const status = fe.result.status;
   setStatus(
     dom,
-    `Sync complete. Updated ${results.updated}, unchanged ${results.unchanged}, failed ${results.failed}.`,
+    `Sync complete. Updated ${status === "updated" ? 1 : 0}, unchanged ${
+      status === "unchanged" ? 1 : 0
+    }, failed ${status === "failed" ? 1 : 0}.`,
   );
   setBusy(app, false);
   renderFormEditLead(app);
