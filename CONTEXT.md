@@ -8,4 +8,4 @@ Browser extension for Granot CRM enrichment (Form Lead and Call Lead), Owner and
 
 **Agent consumer rules:** [`../docs/agents/domain.md`](../docs/agents/domain.md)
 
-Codebase-specific domain terms, if any, will be added here later. Shared vocabulary always defers to the root glossary.
+**Tariff Adjustment** terms live in the root glossary. Official contract: [`../docs/tariff-adjustment/tariff-adjustment-specification.md`](../docs/tariff-adjustment/tariff-adjustment-specification.md). Shared vocabulary always defers to the root glossary.
