@@ -20,12 +20,18 @@ import type { CallLeadCard, FormLeadCard } from "../api/leadBrowse";
 import type { Agent } from "../api/agents";
 import type { CsvFileSnapshot, GranotCsvLink } from "../workflows/csv-sync/types";
 import type { BindingEstimateFeeApplyResult } from "../parsers/granot/form-edit-lead";
+import type {
+  TariffAdjustmentParseResult,
+  TariffAdjustmentRow,
+} from "../parsers/granot/tariff-adjustment";
+import type { TariffAdjustmentSubmitResult } from "../workflows/tariff-adjustment/types";
 import type { AuthSession } from "../auth/types";
 
 export type WorkspaceId =
   | "form-leads"
   | "form-edit-lead"
   | "binding-estimate-fee"
+  | "tariff-adjustment"
   | "call-leads"
   | "search"
   | "csv"
@@ -93,6 +99,14 @@ export type FormEditLeadState = {
 
 export type BindingEstimateFeeState = {
   bindingEstimateFeeResult?: BindingEstimateFeeApplyResult;
+};
+
+export type TariffAdjustmentState = {
+  parseResult?: TariffAdjustmentParseResult;
+  printedRows?: TariffAdjustmentRow[];
+  awaitingApproval: boolean;
+  submitResult?: TariffAdjustmentSubmitResult;
+  error?: string;
 };
 
 /** Which lead type the Search workspace is querying. */
@@ -189,6 +203,7 @@ export type AppState = {
   callLeads: CallLeadsState;
   formEditLead: FormEditLeadState;
   bindingEstimateFee: BindingEstimateFeeState;
+  tariffAdjustment: TariffAdjustmentState;
   search: SearchState;
   csv: CsvState;
   automation: AutomationState;

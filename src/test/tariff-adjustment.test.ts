@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import betterFormHtml from "../../docs/better_form.html?raw";
 import movingFormHtml from "../../docs/moving_form_for_tariff.html?raw";
+import { canAccessWorkspace } from "../auth/gate";
+import { aggregateFrameResponses } from "../messaging/tabs";
 import { parseTariffAdjustmentRows } from "../parsers/granot/tariff-adjustment";
+import {
+  isTariffAdjustmentComplete,
+  toTariffAdjustmentPayload,
+} from "../workflows/tariff-adjustment/preview";
+import type { AuthSession } from "../auth/types";
 
 function parseHtml(html: string): Document {
   return new DOMParser().parseFromString(html, "text/html");
@@ -106,3 +113,85 @@ describe("parseTariffAdjustmentRows", () => {
     expect(result.rows).toEqual([]);
   });
 });
+
+describe("Tariff Adjustment preview and submit payload", () => {
+  it("maps printed rows to snake_case field values only", () => {
+    const parsed = parseTariffAdjustmentRows(parseHtml(betterFormHtml), {
+      now: NOW,
+    });
+    const payload = toTariffAdjustmentPayload(parsed.rows);
+
+    expect(isTariffAdjustmentComplete(parsed)).toBe(true);
+    expect(payload.rows).toEqual([
+      {
+        effective_date: "9/1/2026",
+        pickup_zone: "22079",
+        delivery_zone: "29671",
+        service: "Linehaul",
+        rule: "300 cf",
+        new_rule: "$3.75 per cf",
+        carrier: "C2C",
+      },
+      {
+        effective_date: "9/1/2026",
+        pickup_zone: "22079",
+        delivery_zone: "29671",
+        service: "Additional Services",
+        rule: "Binding Estimate Fee",
+        new_rule: "$956.25",
+        carrier: "C2C",
+      },
+    ]);
+    expect(JSON.stringify(payload)).not.toMatch(
+      /spreadsheet_id|TARIFF_SHEET_ID|job_no|ordref|customer/i,
+    );
+  });
+
+  it("blocks submit when the Agent is missing", () => {
+    const parsed = parseTariffAdjustmentRows(parseHtml(movingFormHtml), {
+      now: NOW,
+    });
+    expect(isTariffAdjustmentComplete(parsed)).toBe(false);
+  });
+});
+
+describe("PARSE_TARIFF_ADJUSTMENT frame aggregation", () => {
+  it("keeps the first pageFound parse", () => {
+    const aggregated = aggregateFrameResponses<{ pageFound: boolean; carrier?: string }>(
+      { type: "PARSE_TARIFF_ADJUSTMENT" },
+      [
+        { pageFound: false, rows: [] },
+        {
+          pageFound: true,
+          rows: [],
+          located: { carrier: "C2C" },
+          missing: [],
+        },
+      ],
+    );
+
+    expect(aggregated.pageFound).toBe(true);
+    expect(aggregated).toMatchObject({ located: { carrier: "C2C" } });
+  });
+});
+
+describe("Tariff workspace gate", () => {
+  it("lets Owner and Employee open Tariff, and keeps other Owner workspaces closed to Employee", () => {
+    const employee = session("employee");
+    const owner = session("owner");
+
+    expect(canAccessWorkspace(employee, "tariff-adjustment")).toBe(true);
+    expect(canAccessWorkspace(employee, "binding-estimate-fee")).toBe(true);
+    expect(canAccessWorkspace(employee, "form-leads")).toBe(false);
+    expect(canAccessWorkspace(owner, "tariff-adjustment")).toBe(true);
+    expect(canAccessWorkspace(owner, "form-leads")).toBe(true);
+  });
+});
+
+function session(role: "owner" | "employee"): AuthSession {
+  return {
+    user: { id: `${role}-1`, email: `${role}@example.invalid`, role },
+    accessToken: "access",
+    refreshToken: "refresh",
+  };
+}

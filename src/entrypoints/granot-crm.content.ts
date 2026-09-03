@@ -14,6 +14,11 @@ import { classifyCsvHref, discoverGranotCsvLinks } from "../parsers/granot/csv-l
 import { parseGranotCsv } from "../parsers/granot/csv";
 import type { GranotCsvLink } from "../parsers/granot/csv-types";
 import { parseFormLeadRows, type ParseResult } from "../parsers/granot/form-leads";
+import {
+  emptyTariffAdjustmentParse,
+  parseTariffAdjustmentRows,
+  type TariffAdjustmentParseResult,
+} from "../parsers/granot/tariff-adjustment";
 import { getSearchDocuments, logPageAndTables } from "../utils/page-scraper";
 import { error as logError, log } from "../utils/logger";
 
@@ -55,6 +60,11 @@ export default defineContentScript({
 
         if (message?.type === "PARSE_CURRENT_FORM_LEAD") {
           sendResponse(parseCurrentFormLeadFromSearchDocuments());
+          return true;
+        }
+
+        if (message?.type === "PARSE_TARIFF_ADJUSTMENT") {
+          sendResponse(parseTariffAdjustmentFromSearchDocuments());
           return true;
         }
 
@@ -167,6 +177,22 @@ function parseCallLeadTablesFromSearchDocuments(): CallLeadPreviewResult {
   } satisfies CallLeadPreviewResult;
   log(
     "No Call Leads / Booked Call Leads tables found in page or accessible frames:",
+    result,
+  );
+  return result;
+}
+
+function parseTariffAdjustmentFromSearchDocuments(): TariffAdjustmentParseResult {
+  for (const searchDocument of getSearchDocuments()) {
+    const result = parseTariffAdjustmentRows(searchDocument.document);
+    if (result.pageFound) {
+      return result;
+    }
+  }
+
+  const result = emptyTariffAdjustmentParse();
+  log(
+    "No tariff adjustment Forms View found in page or accessible frames:",
     result,
   );
   return result;

@@ -102,6 +102,7 @@ export function isWorkspaceId(value: unknown): value is WorkspaceId {
     value === "form-leads" ||
     value === "form-edit-lead" ||
     value === "binding-estimate-fee" ||
+    value === "tariff-adjustment" ||
     value === "call-leads" ||
     value === "search" ||
     value === "csv" ||

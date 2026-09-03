@@ -114,6 +114,15 @@ export function getPopupDom() {
       content: el<HTMLDivElement>("binding-estimate-fee-content"),
     },
 
+    // Tariff Adjustment
+    ta: {
+      checkApprove: el<HTMLButtonElement>("tariff-adjustment-check-approve"),
+      writeNow: el<HTMLButtonElement>("tariff-adjustment-write-now"),
+      approve: el<HTMLButtonElement>("tariff-adjustment-approve"),
+      openDetached: el<HTMLButtonElement>("tariff-adjustment-open-detached"),
+      content: el<HTMLDivElement>("tariff-adjustment-content"),
+    },
+
     // Search
     search: {
       entityFormLeads: el<HTMLButtonElement>("search-entity-form-leads"),

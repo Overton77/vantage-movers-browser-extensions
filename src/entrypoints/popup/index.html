@@ -119,7 +119,8 @@
         white-space: nowrap;
       }
       #open-detached,
-      #binding-estimate-fee-open-detached {
+      #binding-estimate-fee-open-detached,
+      #tariff-adjustment-open-detached {
         flex-shrink: 0;
       }
       .auth-panel {
@@ -1429,6 +1430,14 @@
             <span class="sidebar-tab__icon">💵</span>
             <span class="sidebar-tab__label">Binding Fee</span>
           </button>
+          <button
+            class="sidebar-tab"
+            data-workspace="tariff-adjustment"
+            type="button"
+          >
+            <span class="sidebar-tab__icon">📑</span>
+            <span class="sidebar-tab__label">Tariff</span>
+          </button>
           <button class="sidebar-tab" data-workspace="call-leads" type="button">
             <span class="sidebar-tab__icon">📞</span>
             <span class="sidebar-tab__label">Call Leads</span>
@@ -1802,6 +1811,53 @@
           </div>
 
           <div id="binding-estimate-fee-content"></div>
+        </section>
+
+        <!-- WORKSPACE: Tariff Adjustment -->
+        <section
+          id="ws-tariff-adjustment"
+          class="workspace"
+          data-workspace="tariff-adjustment"
+        >
+          <div class="workspace__header">
+            <div>
+              <h2>Tariff Adjustment</h2>
+              <p>
+                Read a Granot Forms View and submit two append-only rows —
+                Linehaul, then Additional Services — to Vantage. Owner and
+                Employee can use this workspace. The extension never sees the
+                spreadsheet id.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">Actions</h3>
+            <div class="btn-row">
+              <button id="tariff-adjustment-check-approve" type="button">
+                Check and Approve
+              </button>
+              <button id="tariff-adjustment-write-now" type="button">
+                Write Now
+              </button>
+              <button id="tariff-adjustment-approve" type="button" disabled>
+                Approve
+              </button>
+              <button
+                id="tariff-adjustment-open-detached"
+                class="btn-secondary"
+                type="button"
+              >
+                ⤢ Open Movable Window
+              </button>
+            </div>
+            <p class="status-text" style="margin: 10px 0 0">
+              Check and Approve prints both rows and waits for Approve. Write
+              Now prints and writes in the same turn when the parse is complete.
+            </p>
+          </div>
+
+          <div id="tariff-adjustment-content"></div>
         </section>
 
         <!-- WORKSPACE: Call Leads (Table) -->

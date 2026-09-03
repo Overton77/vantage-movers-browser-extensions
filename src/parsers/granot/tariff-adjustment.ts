@@ -32,6 +32,25 @@ export type TariffAdjustmentParseResult = {
   missing: string[];
 };
 
+export const TARIFF_ADJUSTMENT_REQUIRED_FIELDS = [
+  "pickupZone",
+  "deliveryZone",
+  "linehaul.rule",
+  "linehaul.newRule",
+  "additionalServices.rule",
+  "additionalServices.newRule",
+  "carrier",
+] as const;
+
+export function emptyTariffAdjustmentParse(): TariffAdjustmentParseResult {
+  return {
+    pageFound: false,
+    rows: [],
+    located: {},
+    missing: [...TARIFF_ADJUSTMENT_REQUIRED_FIELDS],
+  };
+}
+
 const CITY_STATE_ZIP_RE = /,\s*[A-Z]{2}\s+(\d{5})(?:\D|$)/;
 const INITIAL_PRICE_CF_RE = /(\d+(?:\.\d+)?)\s*cf\b/i;
 const AGENT_LABEL_RE = /^Agent:\s*(.*)$/i;
@@ -81,20 +100,7 @@ export function parseTariffAdjustmentRows(
   ].filter((field): field is string => Boolean(field));
 
   if (!pageFound) {
-    const result = {
-      pageFound: false,
-      rows: [],
-      located: {},
-      missing: [
-        "pickupZone",
-        "deliveryZone",
-        "linehaul.rule",
-        "linehaul.newRule",
-        "additionalServices.rule",
-        "additionalServices.newRule",
-        "carrier",
-      ],
-    } satisfies TariffAdjustmentParseResult;
+    const result = emptyTariffAdjustmentParse();
     log("No tariff adjustment form found:", result);
     return result;
   }

@@ -32,6 +32,12 @@ import { openDetached } from "./shell";
 import { renderAll } from "./render";
 import { fillBindingEstimateFee } from "../workspaces/binding-estimate-fee/actions";
 import {
+  approveTariffAdjustment,
+  checkAndApproveTariffAdjustment,
+  parseTariffAdjustment,
+  writeNowTariffAdjustment,
+} from "../workspaces/tariff-adjustment/actions";
+import {
   openCallLeadsLogTables,
   scanCallLeadsPreview,
   syncBookedCallRows,
@@ -75,6 +81,9 @@ export function attachEventHandlers(app: AppContext): void {
       const workspace = tab.dataset.workspace;
       if (isWorkspaceId(workspace)) {
         setActiveWorkspace(app, workspace);
+        if (workspace === "tariff-adjustment") {
+          void parseTariffAdjustment(app, { quiet: true });
+        }
       }
     });
   }
@@ -82,6 +91,7 @@ export function attachEventHandlers(app: AppContext): void {
   // Top bar
   dom.openDetached.addEventListener("click", () => void openDetached(app));
   dom.bef.openDetached.addEventListener("click", () => void openDetached(app));
+  dom.ta.openDetached.addEventListener("click", () => void openDetached(app));
   dom.authLogout.addEventListener("click", () => {
     void handleLogout(app);
   });
@@ -270,6 +280,17 @@ export function attachEventHandlers(app: AppContext): void {
   // Binding Estimate Fee
   dom.bef.fill.addEventListener("click", () => {
     void fillBindingEstimateFee(app);
+  });
+
+  // Tariff Adjustment
+  dom.ta.checkApprove.addEventListener("click", () => {
+    void checkAndApproveTariffAdjustment(app);
+  });
+  dom.ta.writeNow.addEventListener("click", () => {
+    void writeNowTariffAdjustment(app);
+  });
+  dom.ta.approve.addEventListener("click", () => {
+    void approveTariffAdjustment(app);
   });
 
   // Search

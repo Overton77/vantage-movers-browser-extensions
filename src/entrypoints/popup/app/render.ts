@@ -7,6 +7,7 @@ import { canAccessWorkspace } from "../../../auth/gate";
 import { isWorkspaceId } from "./persistence";
 import { renderAutomation } from "../workspaces/automation/render";
 import { renderBindingEstimateFee } from "../workspaces/binding-estimate-fee/render";
+import { renderTariffAdjustment } from "../workspaces/tariff-adjustment/render";
 import { renderCallLeads } from "../workspaces/call-leads/render";
 import {
   renderFormEditLead,
@@ -22,6 +23,7 @@ export function renderAll(app: AppContext): void {
   renderCallLeads(app);
   renderFormEditLead(app);
   renderBindingEstimateFee(app);
+  renderTariffAdjustment(app);
   renderSearch(app);
   renderCsvWorkspace(app);
   renderAutomation(app);
@@ -51,6 +53,7 @@ export function updateGlobalControls(app: AppContext): void {
     isBusy || app.isDetachedWindow || !state.auth.session;
   dom.openDetached.disabled = detachedDisabled;
   dom.bef.openDetached.disabled = detachedDisabled;
+  dom.ta.openDetached.disabled = detachedDisabled;
   dom.auth.submit.disabled = isBusy || state.auth.loading;
   dom.authLogout.disabled = isBusy || state.auth.loading;
   dom.statusSpinner.classList.toggle("is-visible", isBusy);
@@ -65,6 +68,7 @@ export function setBusy(app: AppContext, nextIsBusy: boolean): void {
   renderCallLeads(app);
   renderFormEditLeadControls(app);
   renderBindingEstimateFee(app);
+  renderTariffAdjustment(app);
   renderCsvWorkspace(app);
 }
 

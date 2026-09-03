@@ -45,6 +45,9 @@ export function createInitialState(): AppState {
       override: "parsed",
     },
     bindingEstimateFee: {},
+    tariffAdjustment: {
+      awaitingApproval: false,
+    },
     search: {
       entity: "form-leads",
       query: {

@@ -3,6 +3,7 @@
 // content script runs with `allFrames: true`). Extracted from `popup/main.ts`
 // in Unit 07 so both the popup and the background runner (Unit 08) can talk to
 // Granot tabs through one transport instead of duplicating frame plumbing.
+import { emptyTariffAdjustmentParse } from "../parsers/granot/tariff-adjustment";
 
 /**
  * Resolves the tab to message. When a `targetTabId` is provided (detached
@@ -59,6 +60,7 @@ export function isFrameAggregatedMessage(
     (message.type === "DUMP_TABLES" ||
       message.type === "PARSE_FOLLOW_UP_ROWS" ||
       message.type === "PARSE_CURRENT_FORM_LEAD" ||
+      message.type === "PARSE_TARIFF_ADJUSTMENT" ||
       message.type === "APPLY_BINDING_ESTIMATE_FEE" ||
       message.type === "PARSE_CALL_LEAD_TABLES" ||
       message.type === "DISCOVER_CRM_CSV_LINKS")
@@ -120,6 +122,18 @@ export function aggregateFrameResponses<T>(
       (response) => response.pageFound === true,
     );
     const aggregated = foundResponse ?? { ok: true, pageFound: false };
+    return {
+      ...aggregated,
+      frameResponses: validResponses.length,
+      frameCount: responses.length,
+    } as T;
+  }
+
+  if (message.type === "PARSE_TARIFF_ADJUSTMENT") {
+    const foundResponse = validResponses.find(
+      (response) => response.pageFound === true,
+    );
+    const aggregated = foundResponse ?? emptyTariffAdjustmentParse();
     return {
       ...aggregated,
       frameResponses: validResponses.length,

@@ -11,9 +11,13 @@ const OWNER_WORKSPACES: readonly WorkspaceId[] = [
   "diagnose",
   "debug",
   "binding-estimate-fee",
+  "tariff-adjustment",
 ];
 
-const EMPLOYEE_WORKSPACES: readonly WorkspaceId[] = ["binding-estimate-fee"];
+const EMPLOYEE_WORKSPACES: readonly WorkspaceId[] = [
+  "binding-estimate-fee",
+  "tariff-adjustment",
+];
 
 export function getAllowedWorkspaces(role: ExtensionRole): readonly WorkspaceId[] {
   return role === "employee" ? EMPLOYEE_WORKSPACES : OWNER_WORKSPACES;

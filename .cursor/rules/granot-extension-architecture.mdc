@@ -14,7 +14,8 @@ alwaysApply: false
 - `src/entrypoints/*` are thin runtime adapters: `granot-crm.content.ts` reads Granot pages, `background.ts` schedules unattended automation, and `popup/main.ts` bootstraps the popup shell.
 - `src/entrypoints/popup/{app,ui,workspaces}` owns popup state wiring, rendering, DOM helpers, events, routing, and workspace actions.
 - `src/parsers/granot/*` are the DOM and CSV parsers. Keep Granot-specific page knowledge there.
-- `src/api/*` is the Vantage HTTP boundary. `src/utils/api.ts` only re-exports the barrel for legacy imports.
+- `src/api/*` is the Vantage HTTP boundary. `src/api/tariffAdjustments.ts` POSTs `/api/v1/tariff-adjustments`. `src/utils/api.ts` only re-exports the barrel for legacy imports.
+- `src/workflows/tariff-adjustment/` owns preview completeness and submit. Binding Estimate Fee stays in `src/parsers/granot/form-edit-lead.ts` / the binding-estimate-fee workspace and does not call Vantage.
 - `src/lifecycle/*` owns UUID v4 operation IDs, the PII-free pending ledger (`browser.storage.local` key `granot-sync:pending-granot-operations-v1`; WXT aliases `chrome.storage.local`), raw statement builders, and the shared foreground/background apply adapter. Persist the pending record before `vantageFetch` so auth refresh reuses the same ID. Package / WXT generated manifest version is `0.2.8`. `.output` is not version authority.
 - `src/auth/*` owns extension login, refresh, token storage, and role gating. Store auth under `granot-sync:auth-session-v1`.
 - `src/messaging/tabs.ts` is the shared tab/frame transport used by the popup and background runner.
@@ -28,8 +29,8 @@ alwaysApply: false
 
 ## Entrypoints
 
-- `src/entrypoints/granot-crm.content.ts` uses `allFrames: true` because Granot pages use framesets/iframes. It handles `PING`, `DUMP_TABLES`, `PARSE_FOLLOW_UP_ROWS`, `PARSE_CURRENT_FORM_LEAD`, `APPLY_BINDING_ESTIMATE_FEE`, `PARSE_CALL_LEAD_TABLES`, `DISCOVER_CRM_CSV_LINKS`, and `FETCH_CRM_CSV`. This entrypoint must stay read-only.
-- `src/messaging/tabs.ts` aggregates the frame responses for `DUMP_TABLES`, `PARSE_FOLLOW_UP_ROWS`, `PARSE_CURRENT_FORM_LEAD`, `APPLY_BINDING_ESTIMATE_FEE`, `PARSE_CALL_LEAD_TABLES`, and `DISCOVER_CRM_CSV_LINKS`. `FETCH_CRM_CSV` is sent directly to the chosen frame.
+- `src/entrypoints/granot-crm.content.ts` uses `allFrames: true` because Granot pages use framesets/iframes. It handles `PING`, `DUMP_TABLES`, `PARSE_FOLLOW_UP_ROWS`, `PARSE_CURRENT_FORM_LEAD`, `PARSE_TARIFF_ADJUSTMENT`, `APPLY_BINDING_ESTIMATE_FEE`, `PARSE_CALL_LEAD_TABLES`, `DISCOVER_CRM_CSV_LINKS`, and `FETCH_CRM_CSV`. This entrypoint must stay read-only.
+- `src/messaging/tabs.ts` aggregates the frame responses for `DUMP_TABLES`, `PARSE_FOLLOW_UP_ROWS`, `PARSE_CURRENT_FORM_LEAD`, `PARSE_TARIFF_ADJUSTMENT`, `APPLY_BINDING_ESTIMATE_FEE`, `PARSE_CALL_LEAD_TABLES`, and `DISCOVER_CRM_CSV_LINKS`. `FETCH_CRM_CSV` is sent directly to the chosen frame.
 - `src/entrypoints/background.ts` reconciles the `granot-sync:auto-sync` alarm on install, startup, auth changes, and settings changes, then calls `runBackgroundAutoSync()` on alarm fire only for owner sessions.
 - `src/entrypoints/popup/main.ts` resolves popup vs. detached mode, builds `AppContext`, loads persisted preferences, wires events, renders, and triggers the first workspace loads.
 
@@ -37,7 +38,8 @@ alwaysApply: false
 
 - `app/context.ts`, `state.ts`, `router.ts`, `persistence.ts`, `events.ts`, `render.ts`, `shell.ts`, and `auto-sync.ts` form the popup shell.
 - `ui/dom.ts`, `status.ts`, and `components.ts` provide typed DOM handles and shared format/status helpers.
-- Workspace ids in code are `form-leads`, `form-edit-lead`, `binding-estimate-fee`, `call-leads`, `search`, `csv`, `automation`, `diagnose`, and `debug`. Employees may access only `binding-estimate-fee`; owners may access all workspaces.
+- Workspace ids in code are `form-leads`, `form-edit-lead`, `binding-estimate-fee`, `tariff-adjustment`, `call-leads`, `search`, `csv`, `automation`, `diagnose`, and `debug`. Employees may access `binding-estimate-fee` and `tariff-adjustment`; owners may access all workspaces. Default Employee workspace stays `binding-estimate-fee`. Sidebar label for `tariff-adjustment` is **Tariff**.
+- `tariff-adjustment` buttons: **Check and Approve** parses and prints (`PARSE_TARIFF_ADJUSTMENT` is read-only) and POSTs only after **Approve** of those printed rows; **Write Now** parses, prints, and POSTs in the same turn if the parse is complete. Do not persist parsed rows in `granot-sync:popup-state-v1`. Binding Estimate Fee still does not call Vantage.
 - `search` is read-only and browses Vantage form/call leads through `GET /api/v1/form-leads` and `GET /api/v1/call-leads`; it never scans Granot or syncs.
 - Popup persistence key `granot-sync:popup-state-v1` stores the active workspace plus interval/filter/query preferences only. Do not persist scan results there.
 

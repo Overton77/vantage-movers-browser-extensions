@@ -15,6 +15,7 @@ import { refreshConnectionChip } from "./app/shell";
 import { getPopupDom } from "./ui/dom";
 import { loadAutomationView } from "./workspaces/automation/actions";
 import { loadCurrentLeadPreview } from "./workspaces/form-edit-lead/actions";
+import { parseTariffAdjustment } from "./workspaces/tariff-adjustment/actions";
 
 function resolvePopupMode(): {
   targetTabId?: number;
@@ -50,6 +51,7 @@ async function init(): Promise<void> {
     const detachedLabel = "✓ Movable Window Active";
     dom.openDetached.textContent = detachedLabel;
     dom.bef.openDetached.textContent = detachedLabel;
+    dom.ta.openDetached.textContent = detachedLabel;
   }
 
   await loadPersistedState(state);
@@ -67,6 +69,12 @@ async function init(): Promise<void> {
   if (state.auth.session?.user.role === "owner") {
     void loadCurrentLeadPreview(app, { preserveOverride: false, quiet: true });
     void loadAutomationView(app);
+  }
+  if (
+    state.auth.session &&
+    state.activeWorkspace === "tariff-adjustment"
+  ) {
+    void parseTariffAdjustment(app, { quiet: true });
   }
 }
 
