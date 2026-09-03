@@ -14,13 +14,33 @@ const OWNER_WORKSPACES: readonly WorkspaceId[] = [
   "tariff-adjustment",
 ];
 
+const SALES_WORKSPACES: readonly WorkspaceId[] = ["binding-estimate-fee"];
+
+const CUSTOMER_SERVICE_WORKSPACES: readonly WorkspaceId[] = [
+  "tariff-adjustment",
+];
+
 const EMPLOYEE_WORKSPACES: readonly WorkspaceId[] = [
   "binding-estimate-fee",
   "tariff-adjustment",
 ];
 
+const ROLE_WORKSPACES: Record<ExtensionRole, readonly WorkspaceId[]> = {
+  owner: OWNER_WORKSPACES,
+  sales: SALES_WORKSPACES,
+  customer_service: CUSTOMER_SERVICE_WORKSPACES,
+  employee: EMPLOYEE_WORKSPACES,
+};
+
+const ROLE_DEFAULT_WORKSPACE: Record<ExtensionRole, WorkspaceId> = {
+  owner: "form-leads",
+  sales: "binding-estimate-fee",
+  customer_service: "tariff-adjustment",
+  employee: "binding-estimate-fee",
+};
+
 export function getAllowedWorkspaces(role: ExtensionRole): readonly WorkspaceId[] {
-  return role === "employee" ? EMPLOYEE_WORKSPACES : OWNER_WORKSPACES;
+  return ROLE_WORKSPACES[role] ?? [];
 }
 
 export function canAccessWorkspace(
@@ -36,5 +56,9 @@ export function canAccessWorkspace(
 export function defaultWorkspaceForSession(
   session: AuthSession | undefined,
 ): WorkspaceId {
-  return session?.user.role === "employee" ? "binding-estimate-fee" : "form-leads";
+  const role = session?.user.role;
+  if (!role) {
+    return "form-leads";
+  }
+  return ROLE_DEFAULT_WORKSPACE[role] ?? "form-leads";
 }

@@ -3,6 +3,16 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   outDir: '.output',
+  // Keep this off 3000–3010. Vantage Admin, partner landings, and Vite's
+  // default scan all sit there; WXT will still bind localhost:3000 even when
+  // another process already owns 0.0.0.0:3000.
+  dev: {
+    server: {
+      port: 3400,
+      origin: 'http://localhost:3400',
+      strictPort: true,
+    },
+  },
   manifest: {
     name: 'Granot Sync',
     description: 'Sync data from Granot CRM to the Vantage server',

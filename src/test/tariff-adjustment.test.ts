@@ -9,7 +9,7 @@ import {
   isTariffAdjustmentComplete,
   toTariffAdjustmentPayload,
 } from "../workflows/tariff-adjustment/preview";
-import type { AuthSession } from "../auth/types";
+import type { AuthSession, ExtensionRole } from "../auth/types";
 
 function parseHtml(html: string): Document {
   return new DOMParser().parseFromString(html, "text/html");
@@ -176,19 +176,30 @@ describe("PARSE_TARIFF_ADJUSTMENT frame aggregation", () => {
 });
 
 describe("Tariff workspace gate", () => {
-  it("lets Owner and Employee open Tariff, and keeps other Owner workspaces closed to Employee", () => {
-    const employee = session("employee");
+  it("maps Owner, Employee, Sales, and Customer Service to explicit workspaces", () => {
     const owner = session("owner");
+    const employee = session("employee");
+    const sales = session("sales");
+    const customerService = session("customer_service");
+
+    expect(canAccessWorkspace(owner, "tariff-adjustment")).toBe(true);
+    expect(canAccessWorkspace(owner, "form-leads")).toBe(true);
 
     expect(canAccessWorkspace(employee, "tariff-adjustment")).toBe(true);
     expect(canAccessWorkspace(employee, "binding-estimate-fee")).toBe(true);
     expect(canAccessWorkspace(employee, "form-leads")).toBe(false);
-    expect(canAccessWorkspace(owner, "tariff-adjustment")).toBe(true);
-    expect(canAccessWorkspace(owner, "form-leads")).toBe(true);
+
+    expect(canAccessWorkspace(sales, "binding-estimate-fee")).toBe(true);
+    expect(canAccessWorkspace(sales, "tariff-adjustment")).toBe(false);
+    expect(canAccessWorkspace(sales, "form-leads")).toBe(false);
+
+    expect(canAccessWorkspace(customerService, "tariff-adjustment")).toBe(true);
+    expect(canAccessWorkspace(customerService, "binding-estimate-fee")).toBe(false);
+    expect(canAccessWorkspace(customerService, "form-leads")).toBe(false);
   });
 });
 
-function session(role: "owner" | "employee"): AuthSession {
+function session(role: ExtensionRole): AuthSession {
   return {
     user: { id: `${role}-1`, email: `${role}@example.invalid`, role },
     accessToken: "access",

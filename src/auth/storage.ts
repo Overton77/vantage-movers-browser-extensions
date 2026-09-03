@@ -27,6 +27,9 @@ function isAuthSession(value: unknown): value is AuthSession {
     Boolean(candidate.user) &&
     typeof candidate.user.id === "string" &&
     typeof candidate.user.email === "string" &&
-    (candidate.user.role === "owner" || candidate.user.role === "employee")
+    (candidate.user.role === "owner" ||
+      candidate.user.role === "sales" ||
+      candidate.user.role === "customer_service" ||
+      candidate.user.role === "employee")
   );
 }

@@ -1,4 +1,4 @@
-export type ExtensionRole = "owner" | "employee";
+export type ExtensionRole = "owner" | "sales" | "customer_service" | "employee";
 
 export type ExtensionUser = {
   id: string;
