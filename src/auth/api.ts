@@ -1,4 +1,5 @@
 import { VANTAGE_API_BASE } from "../config";
+import { toPublicExtensionUser } from "./roles";
 import type { AuthSession, ExtensionUser } from "./types";
 
 type ApiEnvelope<T> =
@@ -19,7 +20,7 @@ export async function loginExtensionUser(
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
-  return data;
+  return requireAuthSession(data);
 }
 
 export async function refreshExtensionSession(
@@ -29,7 +30,7 @@ export async function refreshExtensionSession(
     method: "POST",
     body: JSON.stringify({ refreshToken }),
   });
-  return data;
+  return requireAuthSession(data);
 }
 
 export async function fetchExtensionMe(accessToken: string): Promise<ExtensionUser> {
@@ -39,7 +40,11 @@ export async function fetchExtensionMe(accessToken: string): Promise<ExtensionUs
       Authorization: `Bearer ${accessToken}`,
     },
   });
-  return data.user;
+  const user = toPublicExtensionUser(data.user);
+  if (!user) {
+    throw new Error("Auth request failed: invalid Extension User roles");
+  }
+  return user;
 }
 
 export async function logoutExtensionUser(accessToken?: string): Promise<void> {
@@ -74,4 +79,20 @@ async function authFetch<T>(path: string, init: RequestInit): Promise<T> {
   }
 
   return envelope.data;
+}
+
+function requireAuthSession(data: SessionResponse): AuthSession {
+  const user = toPublicExtensionUser(data.user);
+  if (
+    !user ||
+    typeof data.accessToken !== "string" ||
+    typeof data.refreshToken !== "string"
+  ) {
+    throw new Error("Auth request failed: invalid session");
+  }
+  return {
+    user,
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+  };
 }

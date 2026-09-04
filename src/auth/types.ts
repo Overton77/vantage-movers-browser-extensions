@@ -1,9 +1,11 @@
-export type ExtensionRole = "owner" | "sales" | "customer_service" | "employee";
+export type ExtensionRole = "owner" | "sales" | "customer_service";
+
+export type LeftoverStoredExtensionRole = "employee";
 
 export type ExtensionUser = {
   id: string;
   email: string;
-  role: ExtensionRole;
+  roles: ExtensionRole[];
 };
 
 export type AuthSession = {

@@ -108,20 +108,20 @@ open. EUM-04 owns the map.
 
 ## 10. Acceptance criteria
 
-- [ ] Create with Sales + Customer Service succeeds and lists both
+- [x] Create with Sales + Customer Service succeeds and lists both
       labels
-- [ ] Edit email, password, and roles succeed on `/extension`
-- [ ] Blank password leaves the hash unchanged
-- [ ] Saving with no role checked is blocked in the UI
-- [ ] Delete confirm names the email; after confirm the row is gone
-- [ ] Duplicate-email error shows the server message
-- [ ] Dashboard Admin still cannot open `/extension` or proxy
+- [x] Edit email, password, and roles succeed on `/extension`
+- [x] Blank password leaves the hash unchanged
+- [x] Saving with no role checked is blocked in the UI
+- [x] Delete confirm names the email; after confirm the row is gone
+- [x] Duplicate-email error shows the server message
+- [x] Dashboard Admin still cannot open `/extension` or proxy
       PATCH / DELETE
-- [ ] Copy tests still forbid `employeeOption`
-- [ ] Client tests hit `/api/proxy/api/v1/admin/extension-users` and
+- [x] Copy tests still forbid `employeeOption`
+- [x] Client tests hit `/api/proxy/api/v1/admin/extension-users` and
       `/:id` with `roles` arrays
-- [ ] Browser walk recorded in the completion report
-- [ ] `pnpm test`, `pnpm typecheck`, and `pnpm lint` pass for the
+- [x] Browser walk recorded in the completion report
+- [x] `pnpm test`, `pnpm typecheck`, and `pnpm lint` pass for the
       touched package
 
 ## 11. Commands

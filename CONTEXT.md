@@ -12,6 +12,6 @@ Workspace map: [`.cursor/rules/granot-extension-architecture.mdc`](.cursor/rules
 
 Workspace id `tariff-adjustment` (sidebar **Tariff**) is visible when the Extension User holds Owner or Customer Service. Sales sees Binding Estimate Fee only and does not call the Vantage server. Sales and Customer Service may be held together (that pair is also how leftover Employee is migrated). Default workspace: Owner → Form Leads; else Sales → Binding Estimate Fee; else Tariff Adjustment. Binding Estimate Fee still does not call Vantage.
 
-**Extension User management (planned pack, not shipped):** EUM-01–04. Stored field becomes `roles[]`. Owner edit/delete and session invalidation live in [`docs/extension-user-management/README.md`](docs/extension-user-management/README.md). Role meanings stay in the root glossary.
+**Extension User management (shipped):** EUM-01–04. Access is the union of `roles`. Leftover Employee is migrated to Sales plus Customer Service and is not a live workspace role. Session clears on `granot-sync:auth-session-v1` storage change and visibility bootstrap. Contract: [`docs/extension-user-management/README.md`](docs/extension-user-management/README.md). Role meanings stay in the root glossary.
 
 **Tariff Adjustment** terms live in the root glossary. Official contract: [`../docs/tariff-adjustment/tariff-adjustment-specification.md`](../docs/tariff-adjustment/tariff-adjustment-specification.md). Shared vocabulary always defers to the root glossary.

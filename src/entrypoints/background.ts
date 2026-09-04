@@ -5,6 +5,8 @@ import {
   AUTOMATED_SYNC_SETTINGS_KEY,
   loadAutomatedSyncSettings,
 } from '../auto-sync/settings';
+import { hasExtensionRole } from '../auth/roles';
+import { onAuthSessionStorageChanged } from '../auth/session';
 import {
   AUTH_SESSION_STORAGE_KEY,
   readStoredAuthSession,
@@ -45,7 +47,7 @@ async function reconcileAutoSyncAlarm(): Promise<void> {
 
 async function hasOwnerSession(): Promise<boolean> {
   const session = await readStoredAuthSession();
-  return session?.user.role === 'owner';
+  return Boolean(session && hasExtensionRole(session.user.roles, 'owner'));
 }
 
 export default defineBackground(() => {
@@ -63,9 +65,15 @@ export default defineBackground(() => {
 
   // Keep the schedule in sync with settings changes made from the popup.
   browser.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') {
+      return;
+    }
+    if (AUTH_SESSION_STORAGE_KEY in changes) {
+      onAuthSessionStorageChanged(changes);
+    }
     if (
-      area === 'local' &&
-      (AUTOMATED_SYNC_SETTINGS_KEY in changes || AUTH_SESSION_STORAGE_KEY in changes)
+      AUTOMATED_SYNC_SETTINGS_KEY in changes ||
+      AUTH_SESSION_STORAGE_KEY in changes
     ) {
       void reconcileAutoSyncAlarm();
     }

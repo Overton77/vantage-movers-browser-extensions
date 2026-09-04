@@ -99,18 +99,18 @@ touch it. EUM-04 owns the full map.
 
 ## 10. Acceptance criteria
 
-- [ ] `getAllowedWorkspaces(["sales", "customer_service"])` is
+- [x] `getAllowedWorkspaces(["sales", "customer_service"])` is
       Binding Estimate Fee + Tariff Adjustment
-- [ ] Owner union is the full Owner list, including
+- [x] Owner union is the full Owner list, including
       `["owner", "sales"]`
-- [ ] Default workspace follows spec §3.2
-- [ ] Leftover stored `role: "employee"` maps to Sales + Customer
+- [x] Default workspace follows spec §3.2
+- [x] Leftover stored `role: "employee"` maps to Sales + Customer
       Service
-- [ ] Auto-sync / Owner chrome use `hasExtensionRole`
-- [ ] Clearing `granot-sync:auth-session-v1` resets popup auth state
-- [ ] Visibility-visible re-bootstrap is wired
-- [ ] 401 → refresh → `signOut()` still clears storage
-- [ ] `pnpm compile` passes
+- [x] Auto-sync / Owner chrome use `hasExtensionRole`
+- [x] Clearing `granot-sync:auth-session-v1` resets popup auth state
+- [x] Visibility-visible re-bootstrap is wired
+- [x] 401 → refresh → `signOut()` still clears storage
+- [x] `pnpm compile` passes
 
 ## 11. Commands
 

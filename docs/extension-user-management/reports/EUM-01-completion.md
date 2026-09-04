@@ -103,7 +103,12 @@ requires `--confirm-production=<db>`. Converted rows `$set` `roles`,
 `roles` are unchanged.
 
 Local report against the configured database (counts only): 6 documents,
-1 leftover Owner, 5 leftover Employee, 0 already-has-roles. No apply.
+1 leftover Owner, 5 leftover Employee, 0 already-has-roles.
+
+Owner-requested apply later the same day: 6 converted (`1` Owner →
+`["owner"]`, `5` leftover Employee → `["sales", "customer_service"]`).
+`token_version` incremented on converted rows. Second report after apply
+is the agent's follow-up; emails are not repeated here.
 
 ## Tests and typecheck
 

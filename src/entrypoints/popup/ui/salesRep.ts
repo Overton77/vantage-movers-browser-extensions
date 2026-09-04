@@ -18,6 +18,7 @@ import {
   normalizeGranotCrmUsername,
 } from "../../../workflows/agents/match";
 import type { SalesRepDialogState } from "../../../app/state";
+import { hasExtensionRole } from "../../../auth/roles";
 import type { AppContext } from "../app/context";
 import { setStatus } from "./status";
 
@@ -36,7 +37,8 @@ export type SalesRepControlOptions = {
 };
 
 export function isOwnerSession(app: AppContext): boolean {
-  return app.state.auth.session?.user.role === "owner";
+  const roles = app.state.auth.session?.user.roles;
+  return Boolean(roles && hasExtensionRole(roles, "owner"));
 }
 
 export async function ensureAgentsLoaded(

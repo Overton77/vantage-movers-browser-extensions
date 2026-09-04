@@ -5,6 +5,7 @@ import {
   refreshExtensionSession,
 } from "./api";
 import {
+  AUTH_SESSION_STORAGE_KEY,
   clearStoredAuthSession,
   readStoredAuthSession,
   writeStoredAuthSession,
@@ -13,6 +14,15 @@ import type { AuthSession } from "./types";
 
 let cachedSession: AuthSession | undefined;
 let refreshPromise: Promise<AuthSession | undefined> | undefined;
+
+export type AuthPopupState = {
+  session?: AuthSession;
+};
+
+export type AuthSessionStorageChange = {
+  newValue?: unknown;
+  oldValue?: unknown;
+};
 
 export async function bootstrapAuthSession(): Promise<AuthSession | undefined> {
   const stored = await readStoredAuthSession();
@@ -72,6 +82,27 @@ export async function refreshAuthSession(): Promise<AuthSession | undefined> {
     refreshPromise = undefined;
   });
   return refreshPromise;
+}
+
+export function onAuthSessionStorageChanged(
+  changes: Record<string, AuthSessionStorageChange>,
+  popupAuth?: AuthPopupState,
+): void {
+  const change = changes[AUTH_SESSION_STORAGE_KEY];
+  if (!change) {
+    return;
+  }
+  if (change.newValue == null) {
+    cachedSession = undefined;
+    refreshPromise = undefined;
+    if (popupAuth) {
+      popupAuth.session = undefined;
+    }
+  }
+}
+
+export async function onDocumentVisible(): Promise<AuthSession | undefined> {
+  return bootstrapAuthSession();
 }
 
 async function refreshAuthSessionInner(): Promise<AuthSession | undefined> {

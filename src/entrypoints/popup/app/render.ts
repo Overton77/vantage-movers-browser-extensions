@@ -4,6 +4,7 @@
 // `popup/main.ts` in Unit 07.
 import type { AppContext } from "./context";
 import { canAccessWorkspace } from "../../../auth/gate";
+import { formatExtensionRoleLabels } from "../../../auth/roles";
 import { isWorkspaceId } from "./persistence";
 import { renderAutomation } from "../workspaces/automation/render";
 import { renderBindingEstimateFee } from "../workspaces/binding-estimate-fee/render";
@@ -80,12 +81,17 @@ export function updateAuthShell(app: AppContext): void {
   dom.auth.panel.hidden = authenticated || state.auth.loading;
   dom.authUser.hidden = !authenticated;
   dom.authLogout.hidden = !authenticated;
-  dom.authUser.textContent = session
-    ? `${session.user.email} (${session.user.role})`
+  const roleLabels = session
+    ? formatExtensionRoleLabels(session.user.roles)
     : "";
-  dom.authUser.title = session
-    ? `${session.user.email} (${session.user.role})`
-    : "";
+  const authLabel =
+    session && roleLabels
+      ? `${session.user.email} (${roleLabels})`
+      : session
+        ? session.user.email
+        : "";
+  dom.authUser.textContent = authLabel;
+  dom.authUser.title = authLabel;
 
   dom.auth.error.style.display = state.auth.error ? "block" : "none";
   dom.auth.error.textContent = state.auth.error ?? "";

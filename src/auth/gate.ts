@@ -1,4 +1,5 @@
 import type { WorkspaceId } from "../app/state";
+import { hasExtensionRole } from "./roles";
 import type { AuthSession, ExtensionRole } from "./types";
 
 const OWNER_WORKSPACES: readonly WorkspaceId[] = [
@@ -20,27 +21,21 @@ const CUSTOMER_SERVICE_WORKSPACES: readonly WorkspaceId[] = [
   "tariff-adjustment",
 ];
 
-const EMPLOYEE_WORKSPACES: readonly WorkspaceId[] = [
-  "binding-estimate-fee",
-  "tariff-adjustment",
-];
+export function getAllowedWorkspaces(
+  roles: readonly ExtensionRole[],
+): readonly WorkspaceId[] {
+  if (hasExtensionRole(roles, "owner")) {
+    return OWNER_WORKSPACES;
+  }
 
-const ROLE_WORKSPACES: Record<ExtensionRole, readonly WorkspaceId[]> = {
-  owner: OWNER_WORKSPACES,
-  sales: SALES_WORKSPACES,
-  customer_service: CUSTOMER_SERVICE_WORKSPACES,
-  employee: EMPLOYEE_WORKSPACES,
-};
-
-const ROLE_DEFAULT_WORKSPACE: Record<ExtensionRole, WorkspaceId> = {
-  owner: "form-leads",
-  sales: "binding-estimate-fee",
-  customer_service: "tariff-adjustment",
-  employee: "binding-estimate-fee",
-};
-
-export function getAllowedWorkspaces(role: ExtensionRole): readonly WorkspaceId[] {
-  return ROLE_WORKSPACES[role] ?? [];
+  const allowed: WorkspaceId[] = [];
+  if (hasExtensionRole(roles, "sales")) {
+    allowed.push(...SALES_WORKSPACES);
+  }
+  if (hasExtensionRole(roles, "customer_service")) {
+    allowed.push(...CUSTOMER_SERVICE_WORKSPACES);
+  }
+  return allowed;
 }
 
 export function canAccessWorkspace(
@@ -50,15 +45,21 @@ export function canAccessWorkspace(
   if (!session) {
     return false;
   }
-  return getAllowedWorkspaces(session.user.role).includes(workspace);
+  return getAllowedWorkspaces(session.user.roles).includes(workspace);
 }
 
 export function defaultWorkspaceForSession(
   session: AuthSession | undefined,
 ): WorkspaceId {
-  const role = session?.user.role;
-  if (!role) {
+  const roles = session?.user.roles;
+  if (!roles || roles.length === 0) {
     return "form-leads";
   }
-  return ROLE_DEFAULT_WORKSPACE[role] ?? "form-leads";
+  if (hasExtensionRole(roles, "owner")) {
+    return "form-leads";
+  }
+  if (hasExtensionRole(roles, "sales")) {
+    return "binding-estimate-fee";
+  }
+  return "tariff-adjustment";
 }

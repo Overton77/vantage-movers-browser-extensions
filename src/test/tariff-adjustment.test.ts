@@ -176,18 +176,23 @@ describe("PARSE_TARIFF_ADJUSTMENT frame aggregation", () => {
 });
 
 describe("Tariff workspace gate", () => {
-  it("maps Owner, Employee, Sales, and Customer Service to explicit workspaces", () => {
-    const owner = session("owner");
-    const employee = session("employee");
-    const sales = session("sales");
-    const customerService = session("customer_service");
+  it("maps Owner, Sales, Customer Service, and unions to explicit workspaces", () => {
+    const owner = session(["owner"]);
+    const salesAndCustomerService = session(["sales", "customer_service"]);
+    const ownerAndSales = session(["owner", "sales"]);
+    const sales = session(["sales"]);
+    const customerService = session(["customer_service"]);
 
     expect(canAccessWorkspace(owner, "tariff-adjustment")).toBe(true);
     expect(canAccessWorkspace(owner, "form-leads")).toBe(true);
 
-    expect(canAccessWorkspace(employee, "tariff-adjustment")).toBe(true);
-    expect(canAccessWorkspace(employee, "binding-estimate-fee")).toBe(true);
-    expect(canAccessWorkspace(employee, "form-leads")).toBe(false);
+    expect(canAccessWorkspace(salesAndCustomerService, "tariff-adjustment")).toBe(true);
+    expect(canAccessWorkspace(salesAndCustomerService, "binding-estimate-fee")).toBe(true);
+    expect(canAccessWorkspace(salesAndCustomerService, "form-leads")).toBe(false);
+
+    expect(canAccessWorkspace(ownerAndSales, "tariff-adjustment")).toBe(true);
+    expect(canAccessWorkspace(ownerAndSales, "form-leads")).toBe(true);
+    expect(canAccessWorkspace(ownerAndSales, "binding-estimate-fee")).toBe(true);
 
     expect(canAccessWorkspace(sales, "binding-estimate-fee")).toBe(true);
     expect(canAccessWorkspace(sales, "tariff-adjustment")).toBe(false);
@@ -199,9 +204,13 @@ describe("Tariff workspace gate", () => {
   });
 });
 
-function session(role: ExtensionRole): AuthSession {
+function session(roles: ExtensionRole[]): AuthSession {
   return {
-    user: { id: `${role}-1`, email: `${role}@example.invalid`, role },
+    user: {
+      id: `${roles.join("+")}-1`,
+      email: `${roles[0]}@example.invalid`,
+      roles,
+    },
     accessToken: "access",
     refreshToken: "refresh",
   };

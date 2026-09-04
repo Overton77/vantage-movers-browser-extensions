@@ -1,35 +1,63 @@
+import { toPublicExtensionUser } from "./roles";
 import type { AuthSession } from "./types";
 
 export const AUTH_SESSION_STORAGE_KEY = "granot-sync:auth-session-v1";
 
 export async function readStoredAuthSession(): Promise<AuthSession | undefined> {
   const stored = await browser.storage.local.get(AUTH_SESSION_STORAGE_KEY);
-  const raw = stored?.[AUTH_SESSION_STORAGE_KEY] as AuthSession | undefined;
-  return isAuthSession(raw) ? raw : undefined;
+  return parseStoredAuthSession(stored?.[AUTH_SESSION_STORAGE_KEY]);
 }
 
 export async function writeStoredAuthSession(session: AuthSession): Promise<void> {
-  await browser.storage.local.set({ [AUTH_SESSION_STORAGE_KEY]: session });
+  await browser.storage.local.set({
+    [AUTH_SESSION_STORAGE_KEY]: persistableAuthSession(session),
+  });
 }
 
 export async function clearStoredAuthSession(): Promise<void> {
   await browser.storage.local.remove(AUTH_SESSION_STORAGE_KEY);
 }
 
-function isAuthSession(value: unknown): value is AuthSession {
+export function parseStoredAuthSession(value: unknown): AuthSession | undefined {
   if (!value || typeof value !== "object") {
-    return false;
+    return undefined;
   }
-  const candidate = value as AuthSession;
-  return (
-    typeof candidate.accessToken === "string" &&
-    typeof candidate.refreshToken === "string" &&
-    Boolean(candidate.user) &&
-    typeof candidate.user.id === "string" &&
-    typeof candidate.user.email === "string" &&
-    (candidate.user.role === "owner" ||
-      candidate.user.role === "sales" ||
-      candidate.user.role === "customer_service" ||
-      candidate.user.role === "employee")
-  );
+  const candidate = value as {
+    accessToken?: unknown;
+    refreshToken?: unknown;
+    user?: {
+      id?: unknown;
+      email?: unknown;
+      roles?: unknown;
+      role?: unknown;
+    };
+  };
+  if (
+    typeof candidate.accessToken !== "string" ||
+    typeof candidate.refreshToken !== "string" ||
+    !candidate.user
+  ) {
+    return undefined;
+  }
+  const user = toPublicExtensionUser(candidate.user);
+  if (!user) {
+    return undefined;
+  }
+  return {
+    accessToken: candidate.accessToken,
+    refreshToken: candidate.refreshToken,
+    user,
+  };
+}
+
+export function persistableAuthSession(session: AuthSession): AuthSession {
+  const user = toPublicExtensionUser(session.user);
+  if (!user) {
+    throw new Error("Cannot persist an AuthSession without current roles");
+  }
+  return {
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    user,
+  };
 }

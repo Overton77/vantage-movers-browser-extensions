@@ -4,8 +4,14 @@
 // kicks off the first render. All workspace logic lives in the `app/`, `ui/`,
 // and `workspaces/` modules (split out in Unit 07).
 import { createInitialState } from "./app/state";
-import { bootstrapAuthSession } from "../../auth/session";
+import {
+  bootstrapAuthSession,
+  onAuthSessionStorageChanged,
+  onDocumentVisible,
+} from "../../auth/session";
 import { canAccessWorkspace, defaultWorkspaceForSession } from "../../auth/gate";
+import { hasExtensionRole } from "../../auth/roles";
+import { AUTH_SESSION_STORAGE_KEY } from "../../auth/storage";
 import type { AppContext } from "./app/context";
 import { attachEventHandlers } from "./app/events";
 import { loadPersistedState } from "./app/persistence";
@@ -57,16 +63,15 @@ async function init(): Promise<void> {
   await loadPersistedState(state);
   state.auth.session = await bootstrapAuthSession();
   state.auth.loading = false;
-  if (!canAccessWorkspace(state.auth.session, state.activeWorkspace)) {
-    state.activeWorkspace = defaultWorkspaceForSession(state.auth.session);
-  }
+  applySessionWorkspace(app);
 
   hydrateInterfaceFromState(app);
   setActiveWorkspace(app, state.activeWorkspace, { persist: false });
   attachEventHandlers(app);
+  attachAuthSessionSync(app);
   renderAll(app);
   void refreshConnectionChip(app);
-  if (state.auth.session?.user.role === "owner") {
+  if (isOwnerSignedIn(app)) {
     void loadCurrentLeadPreview(app, { preserveOverride: false, quiet: true });
     void loadAutomationView(app);
   }
@@ -76,6 +81,41 @@ async function init(): Promise<void> {
   ) {
     void parseTariffAdjustment(app, { quiet: true });
   }
+}
+
+function attachAuthSessionSync(app: AppContext): void {
+  browser.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !(AUTH_SESSION_STORAGE_KEY in changes)) {
+      return;
+    }
+    onAuthSessionStorageChanged(changes, app.state.auth);
+    if (!app.state.auth.session) {
+      applySessionWorkspace(app);
+      renderAll(app);
+    }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+    void onDocumentVisible().then((session) => {
+      app.state.auth.session = session;
+      applySessionWorkspace(app);
+      renderAll(app);
+    });
+  });
+}
+
+function applySessionWorkspace(app: AppContext): void {
+  if (!canAccessWorkspace(app.state.auth.session, app.state.activeWorkspace)) {
+    app.state.activeWorkspace = defaultWorkspaceForSession(app.state.auth.session);
+  }
+}
+
+function isOwnerSignedIn(app: AppContext): boolean {
+  const roles = app.state.auth.session?.user.roles;
+  return Boolean(roles && hasExtensionRole(roles, "owner"));
 }
 
 function hydrateInterfaceFromState(app: AppContext): void {
