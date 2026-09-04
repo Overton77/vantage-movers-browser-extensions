@@ -1,9 +1,10 @@
 // Pure helpers that map parsed Call Leads preview sections into Vantage API
 // payloads, plus the "is this row syncable?" predicates. No DOM / messaging.
 //
-// `phone` is included on every payload so the server can match call leads during
-// preview and sync. It must never be written to CallLead.phone_number — only
-// enrichment fields (name, email, zips, job_no, etc.) are updated on sync.
+// `phone` is included on every payload so the server can match Call Leads during
+// preview. It must never be written to CallLead.phone_number. Preview and leftover
+// CSV sync do not write live name or email. Apply stays `{ items }` on
+// `lead_snapshot_apply` / `booking_action_apply`.
 import type {
   BookedCallLeadReconciliationRowPayload,
   CallLeadEnrichmentRowPayload,

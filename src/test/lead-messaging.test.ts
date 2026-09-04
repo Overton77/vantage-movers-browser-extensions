@@ -351,5 +351,8 @@ describe("leadMessaging", () => {
         "cubic_feet 200 -> 300",
       ]),
     ).toBe("Updated: cubic_feet");
+    expect(formatSyncOutcome("updateable", ["granot_contact_snapshot"])).toBe(
+      "Will update: Changed in Granot",
+    );
   });
 });

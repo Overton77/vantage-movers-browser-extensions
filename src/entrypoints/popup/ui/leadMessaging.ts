@@ -544,7 +544,9 @@ function formatChangedFields(changes: string[]): string {
 
 function extractFieldName(change: string): string {
   const first = change.trim().split(/\s+/)[0] ?? "";
-  return first.replace(/[:=,]/g, "");
+  const field = first.replace(/[:=,]/g, "");
+  if (field === "granot_contact_snapshot") return "Changed in Granot";
+  return field;
 }
 
 function joinHumanList(parts: string[]): string {
